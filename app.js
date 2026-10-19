@@ -1239,9 +1239,9 @@ async function handleProfilePhoto(file) {
     if ((p.Porn || 0) + (p.Hentai || 0) > 0.4 || (p.Sexy || 0) > 0.6) {
       throw new Error('Cette photo ne peut pas être utilisée : pas de nudité ni de photo suggestive sur Petit Bonbon.');
     }
-    // 24 pixels de large : impossible d'y reconnaître un visage
+    // 36 pixels de large : des formes et des couleurs, pas assez pour reconnaître un visage
     const t = document.createElement('canvas');
-    t.width = 24; t.height = Math.max(1, Math.min(40, Math.round(24 * c.height / c.width)));
+    t.width = 36; t.height = Math.max(1, Math.min(60, Math.round(36 * c.height / c.width)));
     t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
     // Aperçus de chaque style, calculés sur le téléphone ; on choisit avant d'enregistrer
     S.pphotoDraft = { style: 'normal', previews: Object.fromEntries(PHOTO_STYLES.map((st) => [st.id, stylizePixels(t, st)])) };
@@ -1260,8 +1260,8 @@ const PHOTO_STYLES = [
   { id: 'futur', name: 'Futuriste', pal: ['#0B1418', '#33525C', '#9CC9D3', '#F4FBFF'], scan: true },
 ];
 const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-function stylizePixels(src, st) {
-  const w = src.width, h = src.height, K = 3;   // chaque pixel devient un bloc 3 × 3 (lignes de scan)
+function stylizePixels(src, st, K = 2) {   // chaque pixel devient un bloc K × K (lignes de scan)
+  const w = src.width, h = src.height;
   const d = src.getContext('2d').getImageData(0, 0, w, h).data;
   const pal = st.pal ? st.pal.map(hexRgb) : null;
   const out = document.createElement('canvas'); out.width = w * K; out.height = h * K;
@@ -1279,11 +1279,12 @@ function stylizePixels(src, st) {
     }
     g.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
     g.fillRect(x * K, y * K, K, K);
-    if (st.scan) { g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x * K, y * K + K - 1, K, 1); }
+    if (st.scan && K > 1) { g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x * K, y * K + K - 1, K, 1); }
   }
   // JPEG au plus léger possible (la base n'accepte que de très petites images)
   for (let q = 0.9; q >= 0.3; q -= 0.1) { const u = out.toDataURL('image/jpeg', q); if (u.length <= 5800) return u; }
-  return src.toDataURL('image/jpeg', 0.6);
+  if (K > 1) return stylizePixels(src, { ...st, scan: false }, 1);   // photo très détaillée : sans lignes de scan
+  return out.toDataURL('image/jpeg', 0.2);
 }
 
 // Écouter le vocal d'une carte (sur appui seulement)
