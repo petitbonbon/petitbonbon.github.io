@@ -289,9 +289,13 @@ body.veiled #app, body.veiled .banner, body.veiled .sheet-back { filter: blur(18
 /* Cartes à faire défiler dans « Découvrir » */
 .pcard { touch-action: pan-y; transition: transform .15s ease-out; overflow: hidden; }
 .pcard-photo { position: relative; overflow: hidden; background: var(--lilac); }
-.pcard-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.1); image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; pointer-events: none; }
+.pcard-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; filter: saturate(1.1); image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; pointer-events: none; }
 .pcard.with-photo .pcard-photo { margin: -16px -16px 0; height: 180px; }
 .pcard-photo.mini { width: 84px; height: 84px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
 .pcard-photo.mini img { filter: saturate(1.1); }
 .deck-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px; }
 .deck-nav .btn { min-width: 48px; font-size: 22px; }
+.styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.style-pick { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px; border: 0; background: var(--bg); font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; box-shadow: 0 0 0 2px var(--lilac); }
+.style-pick img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; image-rendering: pixelated; }
+.style-pick[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--pink-deep); font-weight: 700; }

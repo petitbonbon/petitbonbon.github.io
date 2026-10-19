@@ -714,8 +714,8 @@ V.meProfile = () => {
       <button class="btn small ghost" data-a="meSettings" aria-label="Paramètres" style="min-width:44px;padding:0 12px">${ICON.gear} Paramètres</button>
     </div>
     <p class="small" style="margin:0 4px">C’est ta carte dans « Découvrir ». Photo et voix sont facultatives.</p>
-    <article class="card pcard${st.profile_photo ? ' with-photo' : ''}">
-      ${st.profile_photo ? `<div class="pcard-photo"><img src="${esc(st.profile_photo)}" alt="Ta photo pixel" draggable="false"></div>` : ''}
+    <article class="card pcard${S.pphotoDraft || st.profile_photo ? ' with-photo' : ''}">
+      ${S.pphotoDraft || st.profile_photo ? `<div class="pcard-photo"><img src="${esc(S.pphotoDraft ? S.pphotoDraft.previews[S.pphotoDraft.style] : st.profile_photo)}" alt="Ta photo pixel" draggable="false"></div>` : ''}
       <div class="person">${avatar}
         <div class="stack" style="gap:3px;min-width:0"><span class="name">${esc(s.pseudo)}</span><span class="moods">${s.moods && s.moods.length ? esc(s.moods.join(' · ')) : 'Pas d’humeur affichée'}</span></div>
       </div>
@@ -724,12 +724,16 @@ V.meProfile = () => {
     </article>
     <div class="card" style="gap:12px">
       <span class="small">📷 Ma photo pixel</span>
-      <div class="row">
+      ${S.pphotoDraft ? `<span class="label" style="padding:0 4px">Choisis ton style</span>
+      <div class="styles">${PHOTO_STYLES.map((ps) => `<button type="button" class="style-pick" aria-pressed="${S.pphotoDraft.style === ps.id}" data-a="pickPStyle" data-s="${ps.id}">
+          <img src="${S.pphotoDraft.previews[ps.id]}" alt="" draggable="false"><span>${esc(ps.name)}</span></button>`).join('')}</div>
+      <div class="row"><button type="button" class="btn small" data-a="savePPhoto" ${S.busy ? 'disabled' : ''}>Mettre sur ma carte</button><button type="button" class="link muted" data-a="cancelPPhoto">Annuler</button></div>`
+      : `<div class="row">
         <label class="btn small soft" for="pphoto-input">${S.pphotoBusy ? 'Vérification…' : st.profile_photo ? 'Changer la photo' : 'Ajouter une photo'}</label>
         ${st.profile_photo ? '<button type="button" class="link muted" data-a="removePPhoto">Retirer</button>' : ''}
-        <input type="file" id="pphoto-input" accept="image/*" hidden>
-      </div>
-      <span class="small">Elle est toujours en gros pixels, façon jeu vidéo : on y devine des couleurs et une silhouette, jamais un visage. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
+      </div>`}
+      <input type="file" id="pphoto-input" accept="image/*" hidden>
+      <span class="small">Elle est toujours en gros pixels, façon jeu vidéo, avec le style de ton choix : on y devine des couleurs et une silhouette, jamais un visage. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
     </div>
     <div class="card" style="gap:12px">
       <span class="small">🎙 Ma voix</span>
@@ -1237,15 +1241,51 @@ async function handleProfilePhoto(file) {
     }
     // 24 pixels de large : impossible d'y reconnaître un visage
     const t = document.createElement('canvas');
-    t.width = 24; t.height = Math.max(1, Math.min(48, Math.round(24 * c.height / c.width)));
+    t.width = 24; t.height = Math.max(1, Math.min(40, Math.round(24 * c.height / c.width)));
     t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
-    S.status = await rpc('set_profile_photo', { p_thumb: t.toDataURL('image/jpeg', 0.6) });
-    toast('Ta photo pixel est sur ta carte 🍬');
+    // Aperçus de chaque style, calculés sur le téléphone ; on choisit avant d'enregistrer
+    S.pphotoDraft = { style: 'normal', previews: Object.fromEntries(PHOTO_STYLES.map((st) => [st.id, stylizePixels(t, st)])) };
   } catch (e) {
     toast(e && e.message && !/^[A-Z_]+$/.test(e.message) && !/function|schema/i.test(e.message) ? e.message : errMsg(e));
   }
   S.pphotoBusy = false; render();
 }
+// Styles de la photo pixel : la couleur de chaque gros pixel est remplacée selon sa luminosité
+const PHOTO_STYLES = [
+  { id: 'normal', name: 'Naturel' },
+  { id: 'holo', name: 'Hologramme', pal: ['#06142E', '#0E4D7A', '#2BB7D9', '#A8F6FF'], scan: true },
+  { id: 'neon', name: 'Néon', pal: ['#14072E', '#6A1FD1', '#FF3DC8', '#47F3FF'], scan: true },
+  { id: 'r80', name: 'Rétro 80s', pal: ['#2A0B4F', '#A3195B', '#FF6B4A', '#FFE36E'], steps: true, scan: true },
+  { id: 'r90', name: 'Rétro 90s', pal: ['#0F380F', '#306230', '#8BAC0F', '#C4D96F'], steps: true },
+  { id: 'futur', name: 'Futuriste', pal: ['#0B1418', '#33525C', '#9CC9D3', '#F4FBFF'], scan: true },
+];
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+function stylizePixels(src, st) {
+  const w = src.width, h = src.height, K = 3;   // chaque pixel devient un bloc 3 × 3 (lignes de scan)
+  const d = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const pal = st.pal ? st.pal.map(hexRgb) : null;
+  const out = document.createElement('canvas'); out.width = w * K; out.height = h * K;
+  const g = out.getContext('2d');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    let rgb = [d[i], d[i + 1], d[i + 2]];
+    if (pal) {
+      const l = Math.min(1, Math.max(0, (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255));
+      if (st.steps) rgb = pal[Math.min(3, Math.floor(l * 4))];
+      else {
+        const f = l * 3, k = Math.min(2, Math.floor(f)), t = f - k;
+        rgb = pal[k].map((v, j) => Math.round(v + (pal[k + 1][j] - v) * t));
+      }
+    }
+    g.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    g.fillRect(x * K, y * K, K, K);
+    if (st.scan) { g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x * K, y * K + K - 1, K, 1); }
+  }
+  // JPEG au plus léger possible (la base n'accepte que de très petites images)
+  for (let q = 0.9; q >= 0.3; q -= 0.1) { const u = out.toDataURL('image/jpeg', q); if (u.length <= 5800) return u; }
+  return src.toDataURL('image/jpeg', 0.6);
+}
+
 // Écouter le vocal d'une carte (sur appui seulement)
 function playProfileVoice(i) {
   const p = S.people[i];
@@ -1502,6 +1542,16 @@ const A = {
   async removePVoice() {
     try { S.status = await rpc('set_profile_voice', { p_path: null }); } catch (e) { toast(errMsg(e)); }
     render();
+  },
+  pickPStyle(d) { if (S.pphotoDraft) { S.pphotoDraft.style = d.s; render(); } },
+  cancelPPhoto() { S.pphotoDraft = null; render(); },
+  async savePPhoto() {
+    const dr = S.pphotoDraft;
+    if (!dr || S.busy) return;
+    S.busy = true; render();
+    try { S.status = await rpc('set_profile_photo', { p_thumb: dr.previews[dr.style] }); S.pphotoDraft = null; toast('Ta photo est sur ta carte 🍬'); }
+    catch (e) { toast(errMsg(e)); }
+    S.busy = false; render();
   },
   async removePPhoto() {
     try { S.status = await rpc('set_profile_photo', { p_thumb: null }); } catch (e) { toast(errMsg(e)); }
