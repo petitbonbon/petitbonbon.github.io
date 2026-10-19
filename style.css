@@ -279,3 +279,6 @@ body.veiled #app, body.veiled .banner, body.veiled .sheet-back { filter: blur(18
 
 /* Champs lisibles sur les feuilles blanches */
 .sheet .field input, .sheet .field textarea { --fill: var(--bg); --shade: var(--lilac-shade); }
+
+/* Aperçu de la carte story */
+.story-preview { width: 100%; max-width: 220px; align-self: center; aspect-ratio: 9 / 16; object-fit: cover; image-rendering: auto; box-shadow: 0 6px 0 var(--lilac-shade); }
