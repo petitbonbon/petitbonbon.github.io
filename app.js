@@ -266,6 +266,7 @@ const timeAgo = (iso) => {
 };
 
 const ICON = {
+  gear: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>',
   back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
   pin: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
   search: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -685,51 +686,71 @@ V.tab_chat = () => {
   </div>`;
 };
 
-// Ma carte dans « Découvrir » : photo toujours floue + vocal court
-V.myCard = () => {
-  const st = S.status, pv = S.pvoice || {};
+// ---------- Moi : mon profil (ma carte) + paramètres ---------------------
+// Ma carte telle que les autres la voient dans « Découvrir », avec de quoi la modifier
+V.tab_me = () => (S.meSettings ? V.meSettings() : V.meProfile());
+
+V.meProfile = () => {
+  const st = S.status, s = st.session, pv = S.pvoice || {};
+  const avatar = `<div class="avatar" style="--fill:${AVATAR_COLORS[0]}">${s.avatar && isPremium() ? pixelAvatar(s.avatar, 36) : esc((s.pseudo || '?').charAt(0).toUpperCase())}</div>`;
   let voice;
   if (pv.recording) voice = `<div class="voice-row"><span class="rec-dot" aria-hidden="true"></span><span><strong>Enregistrement…</strong> <span id="rec-secs">0</span> / ${pv.max} s</span></div>
       <button type="button" class="btn small dark" style="align-self:flex-start" data-a="stopPVoice">Arrêter</button>`;
   else if (pv.url) voice = `<audio controls preload="auto" src="${pv.url}" class="voice-preview"></audio>
       <div class="row"><button type="button" class="btn small" data-a="savePVoice" ${S.busy ? 'disabled' : ''}>Mettre sur ma carte</button><button type="button" class="btn small ghost" data-a="recPVoice">Recommencer</button><button type="button" class="link muted" data-a="dropPVoice">Annuler</button></div>`;
-  else voice = `<div class="row"><button type="button" class="btn small soft" data-a="recPVoice">🎙 ${st.profile_voice ? 'Changer ma voix' : 'Enregistrer ma voix'} · ${pvoiceMax()} s</button>${st.profile_voice ? '<button type="button" class="link muted" data-a="removePVoice">Retirer</button>' : ''}</div>`;
-  return `<div class="card" style="gap:12px">
-    <span class="small">Ma carte dans « Découvrir »</span>
-    <div class="row" style="align-items:center">
-      <div class="pcard-photo mini">${st.profile_photo ? `<img src="${esc(st.profile_photo)}" alt="Ta photo floue" draggable="false">` : '<span class="small">Pas de photo</span>'}</div>
-      <div class="stack" style="gap:8px;flex:1;min-width:0">
-        <label class="btn small soft" for="pphoto-input" style="align-self:flex-start">${S.pphotoBusy ? 'Vérification…' : st.profile_photo ? '📷 Changer la photo' : '📷 Ajouter une photo floue'}</label>
-        ${st.profile_photo ? '<button type="button" class="link muted" style="align-self:flex-start" data-a="removePPhoto">Retirer la photo</button>' : ''}
-      </div>
-      <input type="file" id="pphoto-input" accept="image/*" hidden>
+  else voice = `<div class="row"><button type="button" class="btn small soft" data-a="recPVoice">🎙 ${st.profile_voice ? 'Changer ma voix' : 'Ajouter ma voix'} · ${pvoiceMax()} s</button>${st.profile_voice ? '<button type="button" class="link muted" data-a="removePVoice">Retirer</button>' : ''}</div>`;
+  const bio = S.editBio ? `<form class="stack" style="gap:10px" data-f="bio">
+        <div class="field"><label for="bio">Quelques mots sur toi</label>
+          <textarea id="bio" name="bio" rows="${isPremium() ? 3 : 2}" maxlength="${isPremium() ? 160 : 80}" placeholder="Ex. : je cherche le meilleur croissant du quartier">${esc(s.bio || '')}</textarea>
+          <span class="small">${isPremium() ? '160' : '80'} caractères. Pas de numéro, de réseau social ni de lien.${isPremium() ? '' : ' <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">160 avec Premium</button>'}</span></div>
+        ${errorBox()}
+        <div class="row"><button class="btn small" type="submit" ${S.busy ? 'disabled' : ''}>Enregistrer</button><button class="link muted" type="button" data-a="cancelBio">Annuler</button></div>
+      </form>`
+    : `${s.bio ? `<p class="bio">« ${esc(s.bio)} »</p>` : '<p class="small" style="margin:0">Pas encore de petits mots.</p>'}
+       <button class="link" data-a="editBio" style="align-self:flex-start;min-height:32px">${s.bio ? 'Modifier mes quelques mots' : '+ Ajouter quelques mots'}</button>`;
+  return `<div class="scroll">
+    <div class="row" style="justify-content:space-between;padding:0 4px">
+      <h2>Mon profil</h2>
+      <button class="btn small ghost" data-a="meSettings" aria-label="Paramètres" style="min-width:44px;padding:0 12px">${ICON.gear} Paramètres</button>
     </div>
-    <span class="small">Elle reste toujours floue : on n’y devine que des couleurs et une ambiance. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
-    ${voice}
-    <span class="small">Ta voix s’écoute seulement si quelqu’un de ta ville appuie dessus. Bienveillante, sans numéro ni réseau social.${isPremium() ? '' : ' <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">10 s avec Premium</button>'}</span>
+    <p class="small" style="margin:0 4px">C’est ta carte dans « Découvrir ». Photo et voix sont facultatives.</p>
+    <article class="card pcard${st.profile_photo ? ' with-photo' : ''}">
+      ${st.profile_photo ? `<div class="pcard-photo"><img src="${esc(st.profile_photo)}" alt="Ta photo floue" draggable="false"></div>` : ''}
+      <div class="person">${avatar}
+        <div class="stack" style="gap:3px;min-width:0"><span class="name">${esc(s.pseudo)}</span><span class="moods">${s.moods && s.moods.length ? esc(s.moods.join(' · ')) : 'Pas d’humeur affichée'}</span></div>
+      </div>
+      ${bio}
+      <span class="small">Identité du jour · expire à ${new Date(s.expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+    </article>
+    <div class="card" style="gap:12px">
+      <span class="small">📷 Ma photo floue</span>
+      <div class="row">
+        <label class="btn small soft" for="pphoto-input">${S.pphotoBusy ? 'Vérification…' : st.profile_photo ? 'Changer la photo' : 'Ajouter une photo'}</label>
+        ${st.profile_photo ? '<button type="button" class="link muted" data-a="removePPhoto">Retirer</button>' : ''}
+        <input type="file" id="pphoto-input" accept="image/*" hidden>
+      </div>
+      <span class="small">Elle reste toujours floue : on n’y devine que des couleurs et une ambiance. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
+    </div>
+    <div class="card" style="gap:12px">
+      <span class="small">🎙 Ma voix</span>
+      ${voice}
+      <span class="small">Elle s’écoute seulement si quelqu’un de ta ville appuie dessus. Bienveillante, sans numéro ni réseau social.${isPremium() ? '' : ' <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">10 s avec Premium</button>'}</span>
+    </div>
   </div>`;
 };
 
-V.tab_me = () => {
-  const st = S.status, s = st.session;
+V.meSettings = () => {
+  const st = S.status;
   const tg = (key, label, hint) => `<button class="toggle" role="switch" aria-checked="${!!st[key]}" data-a="toggle" data-key="${key}"><span class="txt"><strong>${label}</strong><span>${hint}</span></span><span class="track"></span></button>`;
   return `<div class="scroll">
-    <div class="card" style="gap:6px">
-      <span class="small">Identité du jour · expire ${new Date(s.expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-      <h3>${esc(s.pseudo)}</h3>
-      <span class="small">${s.moods && s.moods.length ? esc(s.moods.join(' · ')) : 'Pas d’humeur affichée'}</span>
-      ${S.editBio ? `<form class="stack" style="gap:10px;margin-top:6px" data-f="bio">
-          <div class="field"><label for="bio">Quelques mots sur toi</label>
-            <textarea id="bio" name="bio" rows="${isPremium() ? 3 : 2}" maxlength="${isPremium() ? 160 : 80}" placeholder="Ex. : je cherche le meilleur croissant du quartier">${esc(s.bio || '')}</textarea>
-            <span class="small">${isPremium() ? '160' : '80'} caractères. Pas de numéro, de réseau social ni de lien.${isPremium() ? '' : ' <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">160 avec Premium</button>'}</span></div>
-          ${errorBox()}
-          <div class="row"><button class="btn small" type="submit" ${S.busy ? 'disabled' : ''}>Enregistrer</button><button class="link muted" type="button" data-a="cancelBio">Annuler</button></div>
-        </form>`
-        : `${s.bio ? `<p class="bio" style="margin-top:4px">« ${esc(s.bio)} »</p>` : ''}
-           <button class="link" data-a="editBio" style="align-self:flex-start">${s.bio ? 'Modifier mes quelques mots' : '+ Ajouter quelques mots (facultatif)'}</button>`}
-      <button class="link" data-a="editIdentity" style="align-self:flex-start">Changer d’identité</button>
+    <div class="row" style="justify-content:space-between">
+      <button class="link muted" data-a="meProfile" style="display:flex;align-items:center;gap:6px">${ICON.back}Mon profil</button>
     </div>
-    ${V.myCard()}
+    <h2 style="margin:0 4px">Paramètres</h2>
+    <div class="card" style="gap:6px">
+      <span class="small">Identité du jour</span>
+      <button class="link" data-a="editIdentity" style="align-self:flex-start">Changer de pseudo, d’humeur ou de ville</button>
+    </div>
     <div class="card" style="padding:6px 18px;gap:0">
       <span class="small" style="padding-top:12px">Ce que je reçois</span>
       ${tg('receive_on', 'Recevoir des bonbons', 'Si c’est coupé, tu n’apparais plus dans « Découvrir ».')}
@@ -1451,6 +1472,7 @@ const A = {
     render();
   },
   tab(d) {
+    if (d.tab === 'me') S.meSettings = false;   // « Moi » ouvre toujours sur le profil
     S.tab = d.tab; S.error = '';
     if (S.view === 'identity') S.view = 'main';
     if (d.tab === 'inbox') S.banner = 0;
@@ -1461,6 +1483,8 @@ const A = {
   pickTarget(d) { dropVoiceNow(); dropPhotoNow(); S.target = S.people[+d.i]; S.pick = 0; S.custom = ''; S.error = ''; S.tab = 'send'; render(); window.scrollTo(0, 0); },
   pick(d) { S.pick = +d.i; render(); },
   recVoice() { startRecording(); },
+  meSettings() { S.meSettings = true; S.cardMenu = null; render(); window.scrollTo(0, 0); },
+  meProfile() { S.meSettings = false; render(); window.scrollTo(0, 0); },
   recPVoice() { startRecording('pvoice', pvoiceMax()); },
   stopPVoice() { stopRecording('pvoice'); },
   dropPVoice() { dropVoiceNow('pvoice'); render(); },
