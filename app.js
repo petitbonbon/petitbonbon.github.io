@@ -114,7 +114,7 @@ function applyTheme() {
   if (!(S.status && S.status.premium)) t = 'classique';
   document.documentElement.dataset.theme = t;
 }
-const EVENTS_MSG = 'Quand nous serons plus nombreux, nous organiserons une fois par mois des rencontres live entre bonbons, petits pains et autres gourmandises :)';
+const EVENTS_MSG = 'Quand nous serons plus nombreux dans ta ville, nous y organiserons une fois par mois des rencontres live entre bonbons, petits pains et autres gourmandises :)';
 const AVATAR_COLORS = ['#FFE0EC', '#C6F1DF', '#FFF1A8', '#ECE4FF'];
 const ERRORS = {
   PAYWALL: 'L’accès à Petit Bonbon n’est pas encore activé sur ce compte.',
