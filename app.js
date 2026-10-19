@@ -460,7 +460,7 @@ V.main = () => {
   ${S.tab === 'send' || S.tab === 'sentok' || S.tab === 'chat' ? '' : `
   <nav class="nav" aria-label="Navigation principale">
     <button data-a="tab" data-tab="discover" ${navOn('discover')}>${ICON.search}Découvrir</button>
-    <button data-a="tab" data-tab="inbox" ${navOn('inbox')}>${ICON.inbox}Reçus${unread ? `<span class="count">${unread}</span>` : ''}</button>
+    <button data-a="tab" data-tab="inbox" ${navOn('inbox')}>${ICON.inbox}Ma box${unread ? `<span class="count">${unread}</span>` : ''}</button>
     <button data-a="tab" data-tab="me" ${navOn('me')}>${ICON.me}Moi</button>
   </nav>`}
   ${S.banner ? `<button class="banner" data-a="openBanner">${candy('#F38BAF', 36)}<span><strong>Un petit bonbon pour toi</strong><span>${S.banner > 1 ? `${S.banner} inconnus t’ont envoyé un compliment.` : 'Un inconnu t’a envoyé un compliment.'}</span></span></button>` : ''}
@@ -584,7 +584,7 @@ V.tab_sentok = () => `<section class="screen center">
   <h2>Ton bonbon est parti</h2>
   <p class="sub" style="max-width:300px">${esc(S.target ? S.target.pseudo : '')} recevra « ${esc(S.lastSentText)} » de la part de <strong style="color:var(--ink)">${esc(S.status.session.pseudo)}</strong>. Rien d’autre.</p>
   ${S.target && S.target.reply_id
-    ? '<p class="small" style="max-width:300px;margin:0">Si vous vous êtes envoyé un bonbon tous les deux, un petit échange s’ouvre dans « Reçus ».</p><button class="btn dark small" data-a="tab" data-tab="inbox">Retour à mes bonbons</button>'
+    ? '<p class="small" style="max-width:300px;margin:0">Si vous vous êtes envoyé un bonbon tous les deux, un petit échange s’ouvre dans « Ma box ».</p><button class="btn dark small" data-a="tab" data-tab="inbox">Retour à mes bonbons</button>'
     : '<button class="btn dark small" data-a="tab" data-tab="discover">Continuer à découvrir</button>'}
 </section>`;
 
@@ -1173,7 +1173,7 @@ function playEffect(effect) {
   }
   setTimeout(() => layer.remove(), 5000); // filet de sécurité
 }
-// Joue l'animation d'un bonbon reçu la première fois qu'on ouvre « Reçus »
+// Joue l'animation d'un bonbon reçu la première fois qu'on ouvre « Ma box »
 function playNewEffects() {
   let played = [];
   try { played = JSON.parse(localStorage.getItem('pb_fx_played') || '[]'); } catch (_) {}
@@ -1190,7 +1190,7 @@ function noteConvs(list) {
     && !(S.tab === 'chat' && S.chat && S.chat.session_id === c.session_id));
   const opened = S.convs.length && list.some((c) => !before.has(c.session_id));
   if (fresh || opened) SOUND.play('open');
-  if (opened && S.tab !== 'chat') toast('Un petit échange vient de s’ouvrir dans « Reçus » 🍬');
+  if (opened && S.tab !== 'chat') toast('Un petit échange vient de s’ouvrir dans « Ma box » 🍬');
   S.convs = list;
 }
 
