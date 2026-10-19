@@ -137,6 +137,11 @@ alter table public.bonbons add column if not exists voice_opened_at timestamptz;
 alter table public.bonbons add column if not exists voice_gone      boolean not null default false; -- fichier supprimé
 create index if not exists bonbons_voice_idx on public.bonbons (voice_gone) where voice_path is not null;
 alter table public.profiles add column if not exists accept_voice boolean not null default true; -- recevoir des notes vocales
+-- Carte de profil : photo TOUJOURS floue (seul un aperçu de 24 px est envoyé, la vraie photo
+-- ne quitte jamais le téléphone) et note vocale courte (5 s, 10 s en Premium)
+alter table public.profiles add column if not exists profile_photo text
+  check (profile_photo is null or (profile_photo like 'data:image/jpeg;base64,%' and char_length(profile_photo) <= 6000));
+alter table public.profiles add column if not exists profile_voice text;
 -- Photo (Premium) : arrive floutée, se révèle nette 10 secondes une seule fois, puis est effacée
 alter table public.bonbons add column if not exists photo_path      text;
 alter table public.bonbons add column if not exists photo_thumb     text check (photo_thumb is null or char_length(photo_thumb) <= 6000); -- minuscule aperçu flou
@@ -333,6 +338,8 @@ begin
     'accept_custom',  p.accept_custom,
     'accept_voice',   p.accept_voice,
     'accept_photo',   p.accept_photo,
+    'profile_photo',  p.profile_photo,
+    'profile_voice',  p.profile_voice is not null,
     'premium',        coalesce(p.sub_status in ('active', 'trialing'), false),
     'sub_status',     p.sub_status,
     'sub_period_end', p.sub_period_end,
@@ -402,7 +409,8 @@ end $$;
 drop function if exists public.discover();
 create or replace function public.discover()
 returns table (session_id uuid, pseudo text, moods text[], bio text,
-               home_city text, local boolean, already_sent boolean, avatar int, accepts_custom boolean, accepts_voice boolean, accepts_photo boolean)
+               home_city text, local boolean, already_sent boolean, avatar int, accepts_custom boolean, accepts_voice boolean, accepts_photo boolean,
+               profile_photo text, profile_voice text)
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); me public.sessions%rowtype;
 begin
@@ -419,7 +427,8 @@ begin
                  where b.sender_id = uid and b.recipient_id = s.user_id
                    and b.created_at > now() - interval '24 hours'),
          case when public.is_premium(s.user_id) then s.avatar else 0 end,
-         p.accept_custom, p.accept_voice, p.accept_photo
+         p.accept_custom, p.accept_voice, p.accept_photo,
+         p.profile_photo, p.profile_voice
   from public.sessions s
   join public.profiles p on p.id = s.user_id
   where s.user_id <> uid
@@ -663,7 +672,7 @@ begin
   if me.id is null or them.id is null or them.user_id = uid or not public.chat_open(uid, them.user_id) then raise exception 'GONE'; end if;
   if not public.is_premium(uid) then
     -- Gratuit : une personne de sa ville, une seule par identité du jour
-    if lower(trim(me.current_city)) <> lower(trim(them.current_city)) then raise exception 'SAME_CITY'; end if;
+    if public.norm_city(me.current_city) <> public.norm_city(them.current_city) then raise exception 'SAME_CITY'; end if;
     if exists (select 1 from public.messages m where m.sender_id = uid and m.body is not null
                and m.created_at >= me.created_at and m.recipient_id <> them.user_id) then raise exception 'ONE_CHAT'; end if;
   end if;
@@ -875,6 +884,13 @@ returns boolean language sql stable security definer set search_path = public as
                  where b.voice_path = p_name and b.recipient_id = auth.uid() and not b.voice_gone
                    and b.status <> 'reported'
                    and b.voice_opened_at > now() - interval '2 minutes')
+  or exists (select 1 from public.profiles p
+             join public.sessions them on them.user_id = p.id and them.expires_at > now()
+             join public.sessions me on me.user_id = auth.uid() and me.expires_at > now()
+             where p.profile_voice = p_name and p.id <> auth.uid() and not p.banned
+               and public.norm_city(them.current_city) = public.norm_city(me.current_city)
+               and not public.blocked_between(auth.uid(), p.id))
+  or (split_part(p_name, '/', 1) = auth.uid()::text)  -- réécouter son propre vocal
 $$;
 -- Effacer : son propre fichier (ex. envoi annulé)
 create or replace function public.voice_delete_ok(p_name text)
@@ -975,6 +991,32 @@ end $$;
 
 -- Nettoyage (appelé par la fonction « nettoyage-vocaux », avec la clé service) :
 -- vocaux écoutés depuis plus de 5 min, signalés, de plus de 24 h, ou fichiers orphelins.
+-- ---------- Carte de profil -------------------------------------------
+create or replace function public.set_profile_photo(p_thumb text)
+returns json language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t text := nullif(p_thumb, '');
+begin
+  if uid is null then raise exception 'AUTH'; end if;
+  if t is not null and (t not like 'data:image/jpeg;base64,%' or char_length(t) > 6000) then raise exception 'GONE'; end if;
+  update public.profiles set profile_photo = t where id = uid;
+  return public.my_status();
+end $$;
+
+create or replace function public.set_profile_voice(p_path text)
+returns json language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); v text := nullif(p_path, ''); sz bigint;
+begin
+  if uid is null then raise exception 'AUTH'; end if;
+  if v is not null then
+    select (o.metadata->>'size')::bigint into sz from storage.objects o where o.bucket_id = 'vocaux' and o.name = v;
+    if split_part(v, '/', 1) <> uid::text or sz is null then raise exception 'GONE'; end if;
+    -- 5 s en gratuit, 10 s en Premium (à 48 kbit/s, avec une marge pour l'en-tête du fichier)
+    if sz > (case when public.is_premium(uid) then 75000 else 45000 end) then raise exception 'VOICE_LONG'; end if;
+  end if;
+  update public.profiles set profile_voice = v where id = uid;   -- l'ancien fichier part au prochain nettoyage
+  return public.my_status();
+end $$;
+
 create or replace function public.voices_to_delete()
 returns table (path text) language sql stable security definer set search_path = public as $$
   select b.voice_path from public.bonbons b
@@ -988,6 +1030,7 @@ returns table (path text) language sql stable security definer set search_path =
     and not exists (select 1 from public.bonbons b where b.voice_path = o.name and not b.voice_gone
                     and b.created_at > now() - interval '24 hours' and b.status <> 'reported'
                     and (b.voice_opened_at is null or b.voice_opened_at > now() - interval '5 minutes'))
+    and not exists (select 1 from public.profiles p where p.profile_voice = o.name)
   limit 500
 $$;
 create or replace function public.voices_deleted(p_paths text[])
@@ -1004,7 +1047,7 @@ grant execute on function
   public.voice_upload_ok(text), public.voice_read_ok(text), public.voice_delete_ok(text),
   public.inbox(), public.sent(), public.thank_bonbon(uuid),
   public.report(text, uuid, uuid), public.block_only(uuid, uuid), public.update_bio(text), public.update_settings(boolean, boolean, boolean, boolean, boolean),
-  public.set_avatar(int), public.my_premium_code(), public.restore_premium(text), public.reply_bonbon(uuid, int, text, int, text, text, text), public.conversations(), public.thread(uuid), public.send_phrase(uuid, int), public.send_text(uuid, text),
+  public.set_avatar(int), public.my_premium_code(), public.restore_premium(text), public.reply_bonbon(uuid, int, text, int, text, text, text), public.conversations(), public.thread(uuid), public.send_phrase(uuid, int), public.send_text(uuid, text), public.set_profile_photo(text), public.set_profile_voice(text),
   public.delete_account()
 to authenticated;
 revoke execute on function public.text_problem(text, boolean), public.city_ready(text), public.chat_open(uuid, uuid), public.daily_limit_for(uuid), public.check_voice(uuid, text, uuid), public.check_photo(uuid, text, text, uuid),

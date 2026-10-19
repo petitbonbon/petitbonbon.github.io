@@ -82,6 +82,8 @@ const PREMIUM_SOON = 'D’autres petites surprises arrivent bientôt.';
 const PHOTO_SECONDS = 10; // durée de la révélation
 const VOICE_FREE = 8, VOICE_PREMIUM = 15; // secondes
 const voiceMax = () => (isPremium() ? VOICE_PREMIUM : VOICE_FREE);
+// Vocal de la carte de profil : 5 s, 10 s avec Premium
+const pvoiceMax = () => (isPremium() ? 10 : 5);
 const LOCKED_CHIPS = ['Mon propre mot', 'Bonbon animé', 'Vocal de 15 s', 'Photo floue'];
 
 // Avatars en pixel art (Premium). a = couleur, b = clair, c = foncé, w = blanc
@@ -474,18 +476,15 @@ V.main = () => {
   ${S.story ? V.storySheet() : ''}`;
 };
 
-V.tab_discover = () => {
-  const city = cityLabel(S.status);
-  const left = Math.max(0, S.status.daily_limit - S.status.sent_today);
-  let list;
-  if (!S.status.city_ready) list = `<div class="empty">${candy('#E2CFCB', 64)}<strong style="color:var(--ink)">Tu es la première personne à ${esc(city)} pour l’instant.</strong><span>Dès qu’une autre personne arrive, vous pourrez vous offrir des bonbons. Garde l’app ouverte ou partage-la autour de toi.</span><button class="btn small soft" data-a="share">Partager l’app</button></div>`;
-  else if (!S.peopleLoaded) list = '<p class="empty">Chargement…</p>';
-  else if (!S.people.length) list = `<div class="empty">${candy('#E2CFCB', 64)}<strong style="color:var(--ink)">Personne d’autre à ${esc(city)} pour l’instant.</strong><span>Reviens un peu plus tard, ou partage Petit Bonbon autour de toi.</span><button class="btn small soft" data-a="share">Partager l’app</button></div>`;
-  else list = S.people.map((p, i) => {
+V.personCard = (p, i, city) => {
     const badge = p.local
       ? `<span class="badge local">Vous êtes tous les deux à ${esc(city)}</span>`
       : `<span class="badge away">De passage · vient de ${esc(p.home_city)}</span>`;
-    return `<article class="card has-menu">
+    const photo = p.profile_photo
+      ? `<div class="pcard-photo"><img src="${esc(p.profile_photo)}" alt="" draggable="false"></div>`
+      : '';
+    return `<article class="card has-menu pcard${p.profile_photo ? ' with-photo' : ''}" data-swipe="1">
+      ${photo}
       <button class="card-warn" data-a="cardMenu" data-k="p${i}" aria-label="Bloquer ou signaler ${esc(p.pseudo)}" aria-haspopup="menu" aria-expanded="${S.cardMenu === 'p' + i}">${ICON.warn}</button>
       ${S.cardMenu === 'p' + i ? `<div class="card-menu" role="menu">
         <button role="menuitem" data-a="askBlock" data-i="${i}">Bloquer</button>
@@ -495,14 +494,34 @@ V.tab_discover = () => {
         <div class="avatar" style="--fill:${AVATAR_COLORS[i % 4]}">${p.avatar ? pixelAvatar(p.avatar, 36) : esc((p.pseudo || '?').charAt(0).toUpperCase())}</div>
         <div class="stack" style="gap:3px;min-width:0"><span class="name">${esc(p.pseudo)}</span>${p.moods && p.moods.length ? `<span class="moods">${esc(p.moods.join(' · '))}</span>` : ''}</div>
       </div>
-      ${p.bio ? `<p class="bio">« ${esc(p.bio)} »</p>` : ''}
+      ${p.bio ? `<p class="bio">« ${esc(p.bio)} »</p>` : '<p class="small" style="margin:0">Pas encore de petits mots.</p>'}
+      ${p.profile_voice ? `<button class="btn small soft" style="align-self:flex-start" data-a="playProfile" data-i="${i}" ${S.playingP !== undefined && S.playingP !== null ? 'disabled' : ''}>${S.playingP === i ? '🔊 Lecture…' : '🎙 Écouter sa voix'}</button>` : ''}
       <div class="card-foot">${badge}
         ${p.already_sent
           ? '<span class="small">Bonbon envoyé aujourd’hui</span>'
           : `<button class="btn small dark" data-a="pickTarget" data-i="${i}">Envoyer un bonbon</button>`}
       </div>
     </article>`;
-  }).join('');
+};
+
+V.tab_discover = () => {
+  const city = cityLabel(S.status);
+  const left = Math.max(0, S.status.daily_limit - S.status.sent_today);
+  let list;
+  if (!S.status.city_ready) list = `<div class="empty">${candy('#E2CFCB', 64)}<strong style="color:var(--ink)">Tu es la première personne à ${esc(city)} pour l’instant.</strong><span>Dès qu’une autre personne arrive, vous pourrez vous offrir des bonbons. Garde l’app ouverte ou partage-la autour de toi.</span><button class="btn small soft" data-a="share">Partager l’app</button></div>`;
+  else if (!S.peopleLoaded) list = '<p class="empty">Chargement…</p>';
+  else if (!S.people.length) list = `<div class="empty">${candy('#E2CFCB', 64)}<strong style="color:var(--ink)">Personne d’autre à ${esc(city)} pour l’instant.</strong><span>Reviens un peu plus tard, ou partage Petit Bonbon autour de toi.</span><button class="btn small soft" data-a="share">Partager l’app</button></div>`;
+  else {
+    const n = S.people.length;
+    const i = Math.min(Math.max(0, S.deck || 0), n - 1);
+    S.deck = i;
+    list = V.personCard(S.people[i], i, city) + (n > 1 ? `<div class="deck-nav">
+      <button class="btn small ghost" data-a="deckMove" data-d="-1" aria-label="Personne précédente" ${i === 0 ? 'disabled' : ''}>‹</button>
+      <span class="small">${i + 1} / ${n} · fais glisser la carte</span>
+      <button class="btn small ghost" data-a="deckMove" data-d="1" aria-label="Personne suivante" ${i === n - 1 ? 'disabled' : ''}>›</button>
+    </div>` : '');
+  }
+
   return `<div class="scroll">
     <div class="row" style="justify-content:space-between;padding:0 4px">
       <h2>Autour de toi</h2>
@@ -554,7 +573,7 @@ V.voiceBox = () => {
   const v = S.voice || {};
   let inner;
   if (v.recording) {
-    inner = `<div class="voice-row"><span class="rec-dot" aria-hidden="true"></span><span><strong>Enregistrement…</strong> <span id="rec-secs">${Math.floor((Date.now() - v.start) / 1000)}</span> / ${voiceMax()} s</span></div>
+    inner = `<div class="voice-row"><span class="rec-dot" aria-hidden="true"></span><span><strong>Enregistrement…</strong> <span id="rec-secs">${Math.floor((Date.now() - v.start) / 1000)}</span> / ${v.max} s</span></div>
       <button type="button" class="btn small dark" data-a="stopVoice">Arrêter</button>`;
   } else if (v.url) {
     inner = `<audio controls preload="auto" src="${v.url}" class="voice-preview"></audio>
@@ -666,6 +685,31 @@ V.tab_chat = () => {
   </div>`;
 };
 
+// Ma carte dans « Découvrir » : photo toujours floue + vocal court
+V.myCard = () => {
+  const st = S.status, pv = S.pvoice || {};
+  let voice;
+  if (pv.recording) voice = `<div class="voice-row"><span class="rec-dot" aria-hidden="true"></span><span><strong>Enregistrement…</strong> <span id="rec-secs">0</span> / ${pv.max} s</span></div>
+      <button type="button" class="btn small dark" style="align-self:flex-start" data-a="stopPVoice">Arrêter</button>`;
+  else if (pv.url) voice = `<audio controls preload="auto" src="${pv.url}" class="voice-preview"></audio>
+      <div class="row"><button type="button" class="btn small" data-a="savePVoice" ${S.busy ? 'disabled' : ''}>Mettre sur ma carte</button><button type="button" class="btn small ghost" data-a="recPVoice">Recommencer</button><button type="button" class="link muted" data-a="dropPVoice">Annuler</button></div>`;
+  else voice = `<div class="row"><button type="button" class="btn small soft" data-a="recPVoice">🎙 ${st.profile_voice ? 'Changer ma voix' : 'Enregistrer ma voix'} · ${pvoiceMax()} s</button>${st.profile_voice ? '<button type="button" class="link muted" data-a="removePVoice">Retirer</button>' : ''}</div>`;
+  return `<div class="card" style="gap:12px">
+    <span class="small">Ma carte dans « Découvrir »</span>
+    <div class="row" style="align-items:center">
+      <div class="pcard-photo mini">${st.profile_photo ? `<img src="${esc(st.profile_photo)}" alt="Ta photo floue" draggable="false">` : '<span class="small">Pas de photo</span>'}</div>
+      <div class="stack" style="gap:8px;flex:1;min-width:0">
+        <label class="btn small soft" for="pphoto-input" style="align-self:flex-start">${S.pphotoBusy ? 'Vérification…' : st.profile_photo ? '📷 Changer la photo' : '📷 Ajouter une photo floue'}</label>
+        ${st.profile_photo ? '<button type="button" class="link muted" style="align-self:flex-start" data-a="removePPhoto">Retirer la photo</button>' : ''}
+      </div>
+      <input type="file" id="pphoto-input" accept="image/*" hidden>
+    </div>
+    <span class="small">Elle reste toujours floue : on n’y devine que des couleurs et une ambiance. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
+    ${voice}
+    <span class="small">Ta voix s’écoute seulement si quelqu’un de ta ville appuie dessus. Bienveillante, sans numéro ni réseau social.${isPremium() ? '' : ' <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">10 s avec Premium</button>'}</span>
+  </div>`;
+};
+
 V.tab_me = () => {
   const st = S.status, s = st.session;
   const tg = (key, label, hint) => `<button class="toggle" role="switch" aria-checked="${!!st[key]}" data-a="toggle" data-key="${key}"><span class="txt"><strong>${label}</strong><span>${hint}</span></span><span class="track"></span></button>`;
@@ -685,6 +729,7 @@ V.tab_me = () => {
            <button class="link" data-a="editBio" style="align-self:flex-start">${s.bio ? 'Modifier mes quelques mots' : '+ Ajouter quelques mots (facultatif)'}</button>`}
       <button class="link" data-a="editIdentity" style="align-self:flex-start">Changer d’identité</button>
     </div>
+    ${V.myCard()}
     <div class="card" style="padding:6px 18px;gap:0">
       <span class="small" style="padding-top:12px">Ce que je reçois</span>
       ${tg('receive_on', 'Recevoir des bonbons', 'Si c’est coupé, tu n’apparais plus dans « Découvrir ».')}
@@ -987,58 +1032,58 @@ function noteInbox(list) {
 // Enregistrées sur le téléphone (15 s max), déposées dans un espace privé,
 // écoutables une seule fois par le destinataire, puis effacées.
 const SILENT = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
-function dropVoiceNow() {
-  const v = S.voice;
+function dropVoiceNow(key = 'voice') {
+  const v = S[key];
   if (v) {
     if (v.recording) { v.cancel = true; try { v.recorder.stop(); } catch (_) {} }
     if (v.url) URL.revokeObjectURL(v.url);
     clearInterval(v.timer);
   }
-  S.voice = null;
+  S[key] = null;
 }
-async function startRecording() {
+async function startRecording(key = 'voice', max = voiceMax()) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
     return toast('Ton navigateur ne permet pas d’enregistrer de note vocale.');
   }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
   catch (_) { return toast('Le micro est refusé. Autorise-le pour Petit Bonbon dans les réglages du navigateur.'); }
-  dropVoiceNow();
+  dropVoiceNow(key);
   const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
     .find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
   let rec;
   try { rec = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 48000 } : { audioBitsPerSecond: 48000 }); }
   catch (_) { rec = new MediaRecorder(stream); }
   const chunks = [];
-  const v = { recording: true, recorder: rec, start: Date.now(), stream };
-  S.voice = v;
+  const v = { recording: true, recorder: rec, start: Date.now(), stream, max };
+  S[key] = v;
   rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.onstop = () => {
     stream.getTracks().forEach((t) => t.stop());
     clearInterval(v.timer);
-    if (v.cancel || S.voice !== v) return;
+    if (v.cancel || S[key] !== v) return;
     const blob = new Blob(chunks, { type: (rec.mimeType || type || 'audio/webm').split(';')[0] });
-    if (blob.size < 1500) { S.voice = null; toast('La note est trop courte, réessaie.'); return render(); }
-    S.voice = { blob, url: URL.createObjectURL(blob) };
+    if (blob.size < 1500) { S[key] = null; toast('La note est trop courte, réessaie.'); return render(); }
+    S[key] = { blob, url: URL.createObjectURL(blob) };
     render();
   };
   rec.start(250);
   v.timer = setInterval(() => {
     const secs = Math.floor((Date.now() - v.start) / 1000);
     const el = document.getElementById('rec-secs');
-    if (el) el.textContent = String(Math.min(secs, voiceMax()));
-    if (Date.now() - v.start >= voiceMax() * 1000) stopRecording();
+    if (el) el.textContent = String(Math.min(secs, v.max));
+    if (Date.now() - v.start >= v.max * 1000) stopRecording(key);
   }, 200);
   render();
 }
-function stopRecording() {
-  const v = S.voice;
+function stopRecording(key = 'voice') {
+  const v = S[key];
   if (v && v.recording && v.recorder.state !== 'inactive') { v.recording = false; v.recorder.stop(); }
 }
-async function uploadVoice(blob) {
+async function uploadVoice(blob, prefix = '') {
   const base = (blob.type || 'audio/webm').split(';')[0];
   const ext = /mp4|m4a|aac/.test(base) ? 'm4a' : /ogg/.test(base) ? 'ogg' : /mpeg/.test(base) ? 'mp3' : 'webm';
-  const path = `${S.user.id}/${crypto.randomUUID()}.${ext}`;
+  const path = `${S.user.id}/${prefix}${crypto.randomUUID()}.${ext}`;
   const { error } = await sb.storage.from('vocaux').upload(path, blob, { contentType: base, upsert: false });
   if (error) throw error;
   return path;
@@ -1152,6 +1197,56 @@ async function handlePhoto(file) {
   }
   render();
 }
+async function handleProfilePhoto(file) {
+  if (!/^image\//.test(file.type || 'image/')) return toast('Choisis une image.');
+  if (S.pphotoBusy) return;
+  S.pphotoBusy = true; render();
+  try {
+    const img = await decodeImage(file);
+    const w0 = img.width, h0 = img.height, k = Math.min(1, 1280 / Math.max(w0, h0));
+    const c = document.createElement('canvas');
+    c.width = Math.round(w0 * k); c.height = Math.round(h0 * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    let preds;
+    try { preds = await (await loadNsfw()).classify(c); }
+    catch (_) { throw new Error('La vérification de la photo n’a pas pu se faire. Vérifie ta connexion et réessaie.'); }
+    const p = Object.fromEntries(preds.map((x) => [x.className, x.probability]));
+    if ((p.Porn || 0) + (p.Hentai || 0) > 0.4 || (p.Sexy || 0) > 0.6) {
+      throw new Error('Cette photo ne peut pas être utilisée : pas de nudité ni de photo suggestive sur Petit Bonbon.');
+    }
+    // 24 pixels de large : impossible d'y reconnaître un visage
+    const t = document.createElement('canvas');
+    t.width = 24; t.height = Math.max(1, Math.min(48, Math.round(24 * c.height / c.width)));
+    t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+    S.status = await rpc('set_profile_photo', { p_thumb: t.toDataURL('image/jpeg', 0.6) });
+    toast('Ta photo floue est sur ta carte 🍬');
+  } catch (e) {
+    toast(e && e.message && !/^[A-Z_]+$/.test(e.message) && !/function|schema/i.test(e.message) ? e.message : errMsg(e));
+  }
+  S.pphotoBusy = false; render();
+}
+// Écouter le vocal d'une carte (sur appui seulement)
+function playProfileVoice(i) {
+  const p = S.people[i];
+  if (!p || !p.profile_voice || (S.playingP !== undefined && S.playingP !== null)) return;
+  const audio = new Audio();
+  audio.src = SILENT; audio.play().catch(() => {});   // iPhone : le son démarre dans le geste
+  S.playingP = i; render();
+  let url = null;
+  const finish = () => { if (url) URL.revokeObjectURL(url); S.playingP = null; render(); };
+  (async () => {
+    try {
+      const { data, error } = await sb.storage.from('vocaux').download(p.profile_voice);
+      if (error) throw error;
+      url = URL.createObjectURL(data);
+      audio.onended = finish;
+      audio.onerror = () => { toast('Cette voix ne peut pas être lue sur ce téléphone.'); finish(); };
+      audio.src = url;
+      await audio.play();
+    } catch (e) { toast('Cette voix n’est plus disponible.'); finish(); }
+  })();
+}
+
 async function uploadPhoto(blob) {
   const path = `${S.user.id}/${crypto.randomUUID()}.jpg`;
   const { error } = await sb.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
@@ -1366,6 +1461,34 @@ const A = {
   pickTarget(d) { dropVoiceNow(); dropPhotoNow(); S.target = S.people[+d.i]; S.pick = 0; S.custom = ''; S.error = ''; S.tab = 'send'; render(); window.scrollTo(0, 0); },
   pick(d) { S.pick = +d.i; render(); },
   recVoice() { startRecording(); },
+  recPVoice() { startRecording('pvoice', pvoiceMax()); },
+  stopPVoice() { stopRecording('pvoice'); },
+  dropPVoice() { dropVoiceNow('pvoice'); render(); },
+  async savePVoice() {
+    const pv = S.pvoice;
+    if (!pv || !pv.blob || S.busy) return;
+    S.busy = true; render();
+    try {
+      const path = await uploadVoice(pv.blob, 'profil-');
+      S.status = await rpc('set_profile_voice', { p_path: path });
+      dropVoiceNow('pvoice'); toast('Ta voix est sur ta carte 🍬');
+    } catch (e) { toast(/VOICE_LONG/.test((e && e.message) || '') ? `Ta voix est trop longue : ${pvoiceMax()} secondes maximum.` : errMsg(e)); }
+    S.busy = false; render();
+  },
+  async removePVoice() {
+    try { S.status = await rpc('set_profile_voice', { p_path: null }); } catch (e) { toast(errMsg(e)); }
+    render();
+  },
+  async removePPhoto() {
+    try { S.status = await rpc('set_profile_photo', { p_thumb: null }); } catch (e) { toast(errMsg(e)); }
+    render();
+  },
+  playProfile(d) { playProfileVoice(+d.i); },
+  deckMove(d) {
+    const n = S.people.length;
+    S.deck = Math.min(Math.max(0, (S.deck || 0) + (+d.d)), Math.max(0, n - 1));
+    S.cardMenu = null; render();
+  },
   stopVoice() { stopRecording(); },
   dropVoice() { dropVoiceNow(); render(); },
   playVoice(d) { playVoiceOnce(d.id); },
@@ -1669,8 +1792,30 @@ document.addEventListener('submit', (e) => {
   const fn = F[form.dataset.f];
   if (fn) fn(form);
 });
+let swipe = null;
+document.addEventListener('pointerdown', (e) => {
+  const card = e.target.closest && e.target.closest('[data-swipe]');
+  if (!card || e.target.closest('button, a, label, input, textarea')) { swipe = null; return; }
+  swipe = { x: e.clientX, y: e.clientY, card };
+});
+document.addEventListener('pointermove', (e) => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x;
+  if (Math.abs(dx) > Math.abs(e.clientY - swipe.y)) swipe.card.style.transform = `translateX(${dx * 0.6}px) rotate(${dx / 40}deg)`;
+});
+const endSwipe = (e) => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  swipe.card.style.transform = '';
+  swipe = null;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) A.deckMove({ d: dx < 0 ? 1 : -1 });
+};
+document.addEventListener('pointerup', endSwipe);
+document.addEventListener('pointercancel', () => { if (swipe) { swipe.card.style.transform = ''; swipe = null; } });
+
 document.addEventListener('change', (e) => {
   if (e.target.id === 'photo-input' && e.target.files && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; handlePhoto(f); }
+  if (e.target.id === 'pphoto-input' && e.target.files && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; handleProfilePhoto(f); }
 });
 document.addEventListener('input', (e) => {
   if (e.target.id === 'custom') S.custom = e.target.value;
