@@ -50,14 +50,14 @@ Remplace les `[CROCHETS]` dans `mentions-legales.html`, `cgu.html` et `confident
 
 ---
 
-## Premium : abonnement Stripe Billing (0,99 €/mois)
+## Premium : abonnement Stripe Billing (2,99 €/mois)
 
 Tant que `PREMIUM_PAYMENT_LINK` est vide dans `config.js`, Premium reste une vitrine (« bientôt »). Pour l'ouvrir :
 
 Premium **ne demande ni compte ni e-mail** : il est lié à l'identifiant anonyme du téléphone, et l'abonné reçoit un **code Premium** (`BONBON-XXXX-XXXX-XXXX`) pour le retrouver sur un autre appareil. Les reçus et les e-mails de gestion d'abonnement sont envoyés par Stripe : aucun service d'e-mail à configurer.
 
 ### P1. Produit et lien de paiement Stripe
-1. Stripe › **Catalogue de produits › Ajouter un produit** : « Petit Bonbon Premium », **0,99 €**, **récurrent, mensuel**.
+1. Stripe › **Catalogue de produits › Ajouter un produit** : « Petit Bonbon Premium », **2,99 €**, **récurrent, mensuel**.
 2. **Liens de paiement › Nouveau** › ce produit. Options :
    - *Après le paiement* › rediriger vers `https://petitbonbon.github.io/?premium=1`
    - ne pas demander d'adresse de livraison.

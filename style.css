@@ -236,6 +236,7 @@ html[data-theme="citron"] { --bg: #FFFCEB; --bg-dot: #F3EAB8; --lilac: #FFF1A8; 
 .premium h3 { color: var(--ink) !important; }
 .premium p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.4; }
 .premium .btn { --fill: #fff !important; --shade: var(--lilac-shade); background: var(--fill) !important; }
+.premium.soon { filter: grayscale(1); opacity: .65; }
 
 .events { --fill: var(--mint); --shade: var(--mint-shade); display: flex; gap: 8px; align-items: flex-start; padding: 14px 6px 14px 14px; margin: var(--px); color: var(--mint-deep); }
 .events-txt { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 16px; line-height: 1.35; }

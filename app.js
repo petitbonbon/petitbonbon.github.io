@@ -63,7 +63,8 @@ const PHRASES_FREE = 12; // les phrases à partir de cet indice sont réservées
 const EFFECTS = ['Sans animation', 'Pluie de cœurs', 'Étoiles', 'Confettis'];
 const REASONS = ['Message ou profil déplacé', 'Contenu sexuel', 'Je pense que c’est un·e mineur·e', 'Insistance ou harcèlement', 'Autre chose me met mal à l’aise'];
 // Options réservées à l'abonnement Premium (pas encore disponibles)
-const PREMIUM_PRICE = '0,99 € / mois';
+const PREMIUM_PRICE = '2,99 € / mois';
+const premiumReady = () => !!(window.PB_CONFIG || {}).PREMIUM_PAYMENT_LINK; // false = Premium grisé, « Bientôt »
 const PREMIUM_FEATURES = [
   { short: 'Mon propre mot', long: 'Écrire tes propres mots (filtrés, 140 caractères)' },
   { short: 'Bonbons animés', long: 'Des bonbons qui s’ouvrent en cœurs, étoiles ou confettis' },
@@ -684,11 +685,11 @@ V.tab_me = () => {
       <button class="toggle" role="switch" aria-checked="${SOUND.on}" data-a="toggleSound" data-key="on"><span class="txt"><strong>Sons de l’app</strong><span>Ouverture et bonbon reçu.</span></span><span class="track"></span></button>
       <button class="toggle" role="switch" aria-checked="${SOUND.on && SOUND.clicks}" data-a="toggleSound" data-key="clicks" ${SOUND.on ? '' : 'disabled'}><span class="txt"><strong>Sons des clics</strong><span>Un petit bruit à chaque appui.</span></span><span class="track"></span></button>
     </div>
-    ${isPremium() ? V.premiumCard() : `<div class="premium">
-      <span class="kicker">PREMIUM · ${PREMIUM_PRICE}</span>
+    ${isPremium() ? V.premiumCard() : `<div class="premium${premiumReady() ? '' : ' soon'}">
+      <span class="kicker">PREMIUM · ${premiumReady() ? PREMIUM_PRICE : 'BIENTÔT'}</span>
       <h3>Tes propres mots, des bonbons animés, plus de bonbons chaque jour</h3>
-      <p>L’app de base reste gratuite. ${esc(PREMIUM_SOON)}</p>
-      <button class="btn small" style="align-self:flex-start" data-a="openPremium">Découvrir</button>
+      <p>${premiumReady() ? 'L’app de base reste gratuite. ' + esc(PREMIUM_SOON) : 'Bientôt… En attendant, toute l’app est gratuite 🍬'}</p>
+      <button class="btn small" style="align-self:flex-start" data-a="openPremium">${premiumReady() ? 'Découvrir' : 'Voir ce qui arrive'}</button>
     </div>`}
     <div class="events"><span class="events-txt"><strong>Les rencontres live 🍬</strong><span>${esc(EVENTS_MSG)}</span></span></div>
     <button class="btn ghost" data-a="leave">Partir sans laisser de trace</button>
@@ -737,7 +738,7 @@ V.premiumCard = () => {
 
 V.premiumSheet = () => {
   const ready = !!C.PREMIUM_PAYMENT_LINK;
-  const head = `<span class="small" style="font-weight:700;letter-spacing:1px;color:var(--pink-deep)">PREMIUM · ${PREMIUM_PRICE.toUpperCase()}</span>
+  const head = `<span class="small" style="font-weight:700;letter-spacing:1px;color:var(--pink-deep)">PREMIUM · ${ready ? PREMIUM_PRICE.toUpperCase() : 'BIENTÔT'}</span>
     <h3>Offre plus qu’un bonbon</h3>
     <div class="bullets" style="margin:6px 0">${PREMIUM_FEATURES.map((f) => `<div>${esc(f.long)}</div>`).join('')}</div>
     <p class="small" style="margin:0">${esc(PREMIUM_SOON)}</p>`;
@@ -764,7 +765,7 @@ V.premiumSheet = () => {
     body = `<p class="small" style="margin:0">Pas de compte à créer : Premium est lié à ce téléphone, et tu recevras un <strong>code</strong> pour le retrouver ailleurs.</p>
       <form class="stack" data-f="subscribe" novalidate>
         <label class="check"><input type="checkbox" name="terms"><span>J’accepte les <a href="cgu.html#premium" target="_blank">conditions de l’abonnement</a> : ${PREMIUM_PRICE}, sans engagement, résiliable à tout moment en ligne.</span></label>
-        <label class="check"><input type="checkbox" name="waive"><span>Je veux accéder à Premium tout de suite et je renonce à mon droit de rétractation de 14 jours.</span></label>
+        <label class="check"><input type="checkbox" name="waive"><span>Je veux accéder à Premium tout de suite. Si je me rétracte dans les 14 jours, je paierai seulement la part déjà utilisée.</span></label>
         ${errorBox()}
         <button class="btn" type="submit">S’abonner · ${PREMIUM_PRICE}</button>
       </form>
