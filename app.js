@@ -715,7 +715,7 @@ V.meProfile = () => {
     </div>
     <p class="small" style="margin:0 4px">C’est ta carte dans « Découvrir ». Photo et voix sont facultatives.</p>
     <article class="card pcard${st.profile_photo ? ' with-photo' : ''}">
-      ${st.profile_photo ? `<div class="pcard-photo"><img src="${esc(st.profile_photo)}" alt="Ta photo floue" draggable="false"></div>` : ''}
+      ${st.profile_photo ? `<div class="pcard-photo"><img src="${esc(st.profile_photo)}" alt="Ta photo pixel" draggable="false"></div>` : ''}
       <div class="person">${avatar}
         <div class="stack" style="gap:3px;min-width:0"><span class="name">${esc(s.pseudo)}</span><span class="moods">${s.moods && s.moods.length ? esc(s.moods.join(' · ')) : 'Pas d’humeur affichée'}</span></div>
       </div>
@@ -723,13 +723,13 @@ V.meProfile = () => {
       <span class="small">Identité du jour · expire à ${new Date(s.expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
     </article>
     <div class="card" style="gap:12px">
-      <span class="small">📷 Ma photo floue</span>
+      <span class="small">📷 Ma photo pixel</span>
       <div class="row">
         <label class="btn small soft" for="pphoto-input">${S.pphotoBusy ? 'Vérification…' : st.profile_photo ? 'Changer la photo' : 'Ajouter une photo'}</label>
         ${st.profile_photo ? '<button type="button" class="link muted" data-a="removePPhoto">Retirer</button>' : ''}
         <input type="file" id="pphoto-input" accept="image/*" hidden>
       </div>
-      <span class="small">Elle reste toujours floue : on n’y devine que des couleurs et une ambiance. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
+      <span class="small">Elle est toujours en gros pixels, façon jeu vidéo : on y devine des couleurs et une silhouette, jamais un visage. Seul un minuscule aperçu quitte ton téléphone. Pas de nudité.</span>
     </div>
     <div class="card" style="gap:12px">
       <span class="small">🎙 Ma voix</span>
@@ -1240,7 +1240,7 @@ async function handleProfilePhoto(file) {
     t.width = 24; t.height = Math.max(1, Math.min(48, Math.round(24 * c.height / c.width)));
     t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
     S.status = await rpc('set_profile_photo', { p_thumb: t.toDataURL('image/jpeg', 0.6) });
-    toast('Ta photo floue est sur ta carte 🍬');
+    toast('Ta photo pixel est sur ta carte 🍬');
   } catch (e) {
     toast(e && e.message && !/^[A-Z_]+$/.test(e.message) && !/function|schema/i.test(e.message) ? e.message : errMsg(e));
   }
