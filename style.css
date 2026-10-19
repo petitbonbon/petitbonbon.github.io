@@ -289,9 +289,9 @@ body.veiled #app, body.veiled .banner, body.veiled .sheet-back { filter: blur(18
 /* Cartes à faire défiler dans « Découvrir » */
 .pcard { touch-action: pan-y; transition: transform .15s ease-out; overflow: hidden; }
 .pcard-photo { position: relative; overflow: hidden; background: var(--lilac); }
-.pcard-photo img { position: absolute; inset: -20%; width: 140%; height: 140%; object-fit: cover; filter: blur(18px) saturate(1.2); image-rendering: auto; pointer-events: none; }
+.pcard-photo img { position: absolute; inset: -8%; width: 116%; height: 116%; object-fit: cover; filter: blur(7px) saturate(1.15); image-rendering: auto; pointer-events: none; }
 .pcard.with-photo .pcard-photo { margin: -16px -16px 0; height: 180px; }
 .pcard-photo.mini { width: 84px; height: 84px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
-.pcard-photo.mini img { filter: blur(10px) saturate(1.2); }
+.pcard-photo.mini img { filter: blur(4px) saturate(1.15); }
 .deck-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px; }
 .deck-nav .btn { min-width: 48px; font-size: 22px; }
