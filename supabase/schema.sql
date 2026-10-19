@@ -155,6 +155,16 @@ create table if not exists public.messages (
 );
 create index if not exists messages_pair_idx on public.messages (sender_id, recipient_id, created_at desc);
 create index if not exists messages_time_idx on public.messages (created_at);
+-- Conversation libre : texte écrit (200 caractères, filtré). Gratuit avec 1 personne
+-- de sa ville par identité du jour ; Premium : sans limite.
+alter table public.messages add column if not exists body text;
+alter table public.messages alter column phrase_id drop not null;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'messages_content') then
+    alter table public.messages add constraint messages_content
+      check ((phrase_id is not null or body is not null) and (body is null or char_length(body) between 1 and 200));
+  end if;
+end $$;
 
 -- ---------- Verrouillage : aucun accès direct aux tables -----------------
 alter table public.messages     enable row level security;
@@ -272,12 +282,14 @@ begin
   return t;
 end $$;
 
--- Note vocale jointe à un bonbon : Premium, destinataire d'accord, fichier déposé par l'expéditeur
+-- Note vocale jointe à un bonbon : 8 s en gratuit, 15 s en Premium ; destinataire d'accord, fichier déposé par l'expéditeur
 create or replace function public.check_voice(uid uuid, p_voice text, recipient uuid)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   if p_voice is null or p_voice = '' then return; end if;
-  if not public.is_premium(uid) then raise exception 'PREMIUM'; end if;
+  -- Gratuit : 8 s maximum (≈ 50 Ko à 48 kbit/s ; marge pour l'en-tête du fichier)
+  if not public.is_premium(uid) and coalesce((select (o.metadata->>'size')::bigint from storage.objects o
+       where o.bucket_id = 'vocaux' and o.name = p_voice), 0) > 90000 then raise exception 'VOICE_LONG'; end if;
   if not coalesce((select accept_voice from public.profiles where id = recipient), true) then raise exception 'NO_VOICE'; end if;
   if split_part(p_voice, '/', 1) <> uid::text
      or not exists (select 1 from storage.objects o where o.bucket_id = 'vocaux' and o.name = p_voice)
@@ -574,8 +586,9 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- Mes échanges ouverts (on désigne l'autre par l'identifiant de son identité du jour)
+drop function if exists public.conversations();
 create or replace function public.conversations()
-returns table (session_id uuid, pseudo text, moods text[], last_phrase int, last_from_me boolean, last_at timestamptz)
+returns table (session_id uuid, pseudo text, moods text[], last_phrase int, last_from_me boolean, last_at timestamptz, last_body text)
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); me public.sessions%rowtype;
 begin
@@ -583,10 +596,10 @@ begin
   select * into me from public.sessions where user_id = uid and expires_at > now();
   if not found then return; end if;
   return query
-  select s.id, s.pseudo, s.moods, m.phrase_id, m.sender_id = uid, m.created_at
+  select s.id, s.pseudo, s.moods, m.phrase_id, m.sender_id = uid, m.created_at, m.body
   from public.sessions s
   left join lateral (
-    select mm.phrase_id, mm.sender_id, mm.created_at from public.messages mm
+    select mm.phrase_id, mm.sender_id, mm.created_at, mm.body from public.messages mm
     where ((mm.sender_id = uid and mm.recipient_id = s.user_id) or (mm.sender_id = s.user_id and mm.recipient_id = uid))
       and mm.created_at >= greatest(me.created_at, s.created_at)
     order by mm.created_at desc limit 1) m on true
@@ -597,8 +610,9 @@ begin
 end $$;
 
 -- Les messages d'un échange
+drop function if exists public.thread(uuid);
 create or replace function public.thread(p_session_id uuid)
-returns table (mine boolean, phrase_id int, created_at timestamptz)
+returns table (mine boolean, phrase_id int, created_at timestamptz, body text)
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid(); me public.sessions%rowtype; them public.sessions%rowtype;
 begin
@@ -607,7 +621,7 @@ begin
   select * into them from public.sessions where id = p_session_id and expires_at > now();
   if me.id is null or them.id is null or not public.chat_open(uid, them.user_id) then raise exception 'GONE'; end if;
   return query
-  select m.sender_id = uid, m.phrase_id, m.created_at
+  select m.sender_id = uid, m.phrase_id, m.created_at, m.body
   from public.messages m
   where ((m.sender_id = uid and m.recipient_id = them.user_id) or (m.sender_id = them.user_id and m.recipient_id = uid))
     and m.created_at >= greatest(me.created_at, them.created_at)
@@ -631,6 +645,33 @@ begin
   if (select count(*) from public.messages where sender_id = uid and recipient_id = them.user_id
       and created_at > now() - interval '24 hours') >= 60 then raise exception 'LIMIT_CHAT'; end if;
   insert into public.messages (sender_id, recipient_id, phrase_id) values (uid, them.user_id, p_phrase);
+  delete from public.messages where created_at < now() - interval '2 days';  -- rien n'est gardé longtemps
+end $$;
+
+-- Écrire un message libre (200 caractères, filtré comme les pseudos)
+create or replace function public.send_text(p_session_id uuid, p_body text)
+returns void language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); problem text; me public.sessions%rowtype; them public.sessions%rowtype;
+        t text := nullif(trim(coalesce(p_body, '')), '');
+begin
+  problem := public.access_problem(uid);
+  if problem is not null then raise exception '%', problem; end if;
+  if t is null then return; end if;
+  if char_length(t) > 200 or public.text_problem(t) then raise exception 'BAD_TEXT'; end if;
+  select * into me from public.sessions where user_id = uid and expires_at > now();
+  select * into them from public.sessions where id = p_session_id and expires_at > now();
+  if me.id is null or them.id is null or them.user_id = uid or not public.chat_open(uid, them.user_id) then raise exception 'GONE'; end if;
+  if not public.is_premium(uid) then
+    -- Gratuit : une personne de sa ville, une seule par identité du jour
+    if lower(trim(me.current_city)) <> lower(trim(them.current_city)) then raise exception 'SAME_CITY'; end if;
+    if exists (select 1 from public.messages m where m.sender_id = uid and m.body is not null
+               and m.created_at >= me.created_at and m.recipient_id <> them.user_id) then raise exception 'ONE_CHAT'; end if;
+  end if;
+  if exists (select 1 from public.messages where sender_id = uid and recipient_id = them.user_id
+             and created_at > now() - interval '2 seconds') then raise exception 'SLOW'; end if;
+  if (select count(*) from public.messages where sender_id = uid and recipient_id = them.user_id
+      and created_at > now() - interval '24 hours') >= 60 then raise exception 'LIMIT_CHAT'; end if;
+  insert into public.messages (sender_id, recipient_id, body) values (uid, them.user_id, t);
   delete from public.messages where created_at < now() - interval '2 days';  -- rien n'est gardé longtemps
 end $$;
 
@@ -822,10 +863,10 @@ values ('vocaux', 'vocaux', false, 400000,
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
                                allowed_mime_types = excluded.allowed_mime_types;
 
--- Déposer : seulement un abonné Premium, dans son propre dossier
+-- Déposer : chacun dans son propre dossier (la durée est vérifiée à l'envoi du bonbon)
 create or replace function public.voice_upload_ok(p_name text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select auth.uid() is not null and split_part(p_name, '/', 1) = auth.uid()::text and public.is_premium(auth.uid())
+  select auth.uid() is not null and split_part(p_name, '/', 1) = auth.uid()::text
 $$;
 -- Lire : seulement le destinataire, pendant les 2 minutes qui suivent l'ouverture
 create or replace function public.voice_read_ok(p_name text)
@@ -963,7 +1004,7 @@ grant execute on function
   public.voice_upload_ok(text), public.voice_read_ok(text), public.voice_delete_ok(text),
   public.inbox(), public.sent(), public.thank_bonbon(uuid),
   public.report(text, uuid, uuid), public.block_only(uuid, uuid), public.update_bio(text), public.update_settings(boolean, boolean, boolean, boolean, boolean),
-  public.set_avatar(int), public.my_premium_code(), public.restore_premium(text), public.reply_bonbon(uuid, int, text, int, text, text, text), public.conversations(), public.thread(uuid), public.send_phrase(uuid, int),
+  public.set_avatar(int), public.my_premium_code(), public.restore_premium(text), public.reply_bonbon(uuid, int, text, int, text, text, text), public.conversations(), public.thread(uuid), public.send_phrase(uuid, int), public.send_text(uuid, text),
   public.delete_account()
 to authenticated;
 revoke execute on function public.text_problem(text, boolean), public.city_ready(text), public.chat_open(uuid, uuid), public.daily_limit_for(uuid), public.check_voice(uuid, text, uuid), public.check_photo(uuid, text, text, uuid),

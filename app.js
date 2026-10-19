@@ -68,7 +68,7 @@ const premiumReady = () => !!(window.PB_CONFIG || {}).PREMIUM_PAYMENT_LINK; // f
 const PREMIUM_FEATURES = [
   { short: 'Mon propre mot', long: 'Écrire tes propres mots (filtrés, 140 caractères)' },
   { short: 'Bonbons animés', long: 'Des bonbons qui s’ouvrent en cœurs, étoiles ou confettis' },
-  { short: 'Notes vocales', long: 'Une note vocale de 15 s avec ton bonbon, écoutable une seule fois' },
+  { short: 'Notes vocales', long: 'Des notes vocales de 15 s au lieu de 8 s' },
   { short: 'Photos floues', long: 'Une photo qui arrive floutée et se révèle 10 secondes, une seule fois' },
   { short: 'Plus de bonbons', long: '25 bonbons à offrir par jour au lieu de 10' },
   { short: 'Plus de mots', long: '12 petites phrases en plus dans les échanges' },
@@ -80,8 +80,9 @@ const PREMIUM_FEATURES = [
 ];
 const PREMIUM_SOON = 'D’autres petites surprises arrivent bientôt.';
 const PHOTO_SECONDS = 10; // durée de la révélation
-const VOICE_MAX = 15; // secondes
-const LOCKED_CHIPS = ['Mon propre mot', 'Bonbon animé', 'Note vocale', 'Photo floue'];
+const VOICE_FREE = 8, VOICE_PREMIUM = 15; // secondes
+const voiceMax = () => (isPremium() ? VOICE_PREMIUM : VOICE_FREE);
+const LOCKED_CHIPS = ['Mon propre mot', 'Bonbon animé', 'Vocal de 15 s', 'Photo floue'];
 
 // Avatars en pixel art (Premium). a = couleur, b = clair, c = foncé, w = blanc
 const PIXEL_AVATARS = [
@@ -137,6 +138,10 @@ const ERRORS = {
   WEEKLY: 'Tu as déjà offert plusieurs bonbons à cette personne cette semaine. Laisse-lui un peu d’air 🍬',
   BAD_TEXT: 'Ton surnom, tes quelques mots ou ta ville contient un contact (numéro, réseau social, lien) ou un mot interdit. Modifie-le pour continuer.',
   GONE: 'Cette personne n’est plus disponible.',
+  ONE_CHAT: 'En gratuit, tu peux écrire librement à une seule personne par identité du jour. Avec Premium, à tout le monde 🍬',
+  SAME_CITY: 'En gratuit, la conversation libre est réservée aux bonbons de ta ville.',
+  BAD_MSG: 'Ton message contient un contact (numéro, réseau social, lien) ou un mot interdit. Modifie-le pour l’envoyer.',
+  VOICE_LONG: 'Ta note vocale est trop longue : 8 secondes maximum en gratuit.',
   NO_SESSION: 'Ton identité du jour a expiré. Recrée-la pour continuer.',
   BAD_MOOD: 'Humeur non reconnue.',
   AUTH: 'Ta session a expiré, reconnecte-toi.',
@@ -222,7 +227,7 @@ const errMsg = (e) => {
   if (/Password should be/i.test(raw)) return 'Le mot de passe doit faire au moins 8 caractères.';
   if (/rate limit|too many/i.test(raw)) return 'Trop de tentatives, réessaie dans quelques minutes.';
   if (/Failed to fetch|NetworkError/i.test(raw)) return 'Connexion impossible. Vérifie ton réseau.';
-  if (/row-level security|violates row/i.test(raw)) return 'L’envoi de la note vocale a été refusé. Vérifie que Premium est actif.';
+  if (/row-level security|violates row/i.test(raw)) return 'L’envoi de la note vocale a été refusé. Réessaie dans un instant.';
   if (/mime type|payload too large|maximum allowed size|exceeded the maximum/i.test(raw)) return 'Cette note vocale est trop lourde ou dans un format non pris en charge.';
   // Détail technique affiché en petit : utile pour comprendre une erreur imprévue
   try { console.error('[Petit Bonbon]', e); } catch (_) {}
@@ -535,7 +540,7 @@ V.tab_send = () => {
               <span class="label" style="padding:0 4px">Animation à l’ouverture <span style="color:var(--pink-deep)">· Premium</span></span>
               <div class="chips">${EFFECTS.map((e, i) => `<button type="button" class="chip" aria-pressed="${(S.effect || 0) === i}" data-a="pickEffect" data-i="${i}">${esc(e)}</button>`).join('')}</div>
             </div>`
-      : `<div class="stack" style="gap:10px">
+      : (t.accepts_voice === false ? '' : V.voiceBox()) + `<div class="stack" style="gap:10px">
       <span class="label" style="padding:0 4px">Avec Premium</span>
       <div class="chips">${LOCKED_CHIPS.map((f) => `<button type="button" class="chip locked" data-a="openPremium">${ICON.lockSmall}${esc(f)}</button>`).join('')}</div>
     </div>`}
@@ -549,7 +554,7 @@ V.voiceBox = () => {
   const v = S.voice || {};
   let inner;
   if (v.recording) {
-    inner = `<div class="voice-row"><span class="rec-dot" aria-hidden="true"></span><span><strong>Enregistrement…</strong> <span id="rec-secs">${Math.floor((Date.now() - v.start) / 1000)}</span> / ${VOICE_MAX} s</span></div>
+    inner = `<div class="voice-row"><span class="rec-dot" aria-hidden="true"></span><span><strong>Enregistrement…</strong> <span id="rec-secs">${Math.floor((Date.now() - v.start) / 1000)}</span> / ${voiceMax()} s</span></div>
       <button type="button" class="btn small dark" data-a="stopVoice">Arrêter</button>`;
   } else if (v.url) {
     inner = `<audio controls preload="auto" src="${v.url}" class="voice-preview"></audio>
@@ -558,7 +563,7 @@ V.voiceBox = () => {
     inner = `<button type="button" class="btn small soft" data-a="recVoice" style="align-self:flex-start">🎙 Enregistrer une note vocale</button>`;
   }
   return `<div class="stack voice-box" style="gap:10px">
-    <span class="label" style="padding:0 4px">Note vocale · ${VOICE_MAX} s max <span style="color:var(--pink-deep)">· Premium</span></span>
+    <span class="label" style="padding:0 4px">Note vocale · ${voiceMax()} s max${isPremium() ? ' <span style="color:var(--pink-deep)">· Premium</span>' : ' · <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">15 s avec Premium</button>'}</span>
     ${inner}
     <span class="small">Elle sera écoutable une seule fois, puis effacée. Bienveillante, sans numéro ni réseau social.</span>
   </div>`;
@@ -622,7 +627,7 @@ V.tab_inbox = () => {
     </div>`).join('') : '';
   const convs = S.convs.length ? `<h3 style="margin:0 4px">Vos petits échanges</h3>` + S.convs.map((c) => `<button class="card conv" data-a="openChat" data-sid="${esc(c.session_id)}">
       <span class="row" style="justify-content:space-between;width:100%"><strong style="font-size:18px">${esc(c.pseudo)}</strong>${convUnread(c) ? '<span class="dot-new" aria-label="Nouveau message"></span>' : ''}</span>
-      <span class="small">${c.last_phrase === null || c.last_phrase === undefined ? 'Vous vous êtes envoyé un bonbon : dites-vous un petit mot !' : (c.last_from_me ? 'Toi : ' : '') + esc(PHRASES[c.last_phrase] || '')}</span>
+      <span class="small">${(c.last_phrase === null || c.last_phrase === undefined) && !c.last_body ? 'Vous vous êtes envoyé un bonbon : dites-vous un petit mot !' : (c.last_from_me ? 'Toi : ' : '') + esc(c.last_body || PHRASES[c.last_phrase] || '')}</span>
     </button>`).join('') : '';
   return `<div class="scroll">${convs}<h2 style="margin:${S.convs.length ? '12px' : '0'} 4px 0">Tes petits bonbons</h2>${rec}${sent}</div>`;
 };
@@ -630,8 +635,8 @@ V.tab_inbox = () => {
 V.tab_chat = () => {
   const c = S.chat || {};
   const msgs = S.thread.length
-    ? S.thread.map((m) => `<div class="bubble ${m.mine ? 'mine' : ''}">${esc(PHRASES[m.phrase_id] || '')}</div>`).join('')
-    : `<p class="small" style="text-align:center;margin:20px 0">Vous vous êtes envoyé un bonbon tous les deux. Choisis un petit mot ci-dessous 🍬</p>`;
+    ? S.thread.map((m) => `<div class="bubble ${m.mine ? 'mine' : ''}">${esc(m.body || PHRASES[m.phrase_id] || '')}</div>`).join('')
+    : `<p class="small" style="text-align:center;margin:20px 0">Vous vous êtes envoyé un bonbon tous les deux. Écris-lui ou choisis un petit mot ci-dessous 🍬</p>`;
   return `<div class="scroll chat">
     <div class="row" style="justify-content:space-between">
       <button class="link muted" data-a="tab" data-tab="inbox" style="display:flex;align-items:center;gap:6px">${ICON.back}Retour</button>
@@ -652,6 +657,11 @@ V.tab_chat = () => {
       ${PHRASES.map((ph, i) => (i < PHRASES_FREE || isPremium()
         ? `<button type="button" class="chip" data-a="sendPhrase" data-i="${i}">${esc(ph)}</button>`
         : `<button type="button" class="chip locked" data-a="openPremium">${ICON.lockSmall}${esc(ph)}</button>`)).join('')}
+      <form class="chat-input" data-f="chatText" novalidate>
+        <input name="chatmsg" maxlength="200" autocomplete="off" placeholder="Écris un petit message…" aria-label="Ton message">
+        <button class="btn small" type="submit" ${S.busy ? 'disabled' : ''}>Envoyer</button>
+      </form>
+      <span class="small" style="width:100%">${isPremium() ? 'Bienveillant, sans numéro, réseau social ni lien.' : 'Gratuit avec une personne de ta ville. Bienveillant, sans numéro, réseau social ni lien.'}</span>
     </div>
   </div>`;
 };
@@ -679,7 +689,7 @@ V.tab_me = () => {
       <span class="small" style="padding-top:12px">Ce que je reçois</span>
       ${tg('receive_on', 'Recevoir des bonbons', 'Si c’est coupé, tu n’apparais plus dans « Découvrir ».')}
       ${tg('accept_custom', 'Recevoir des mots personnalisés', 'Écrits par des membres Premium, vérifiés avant d’arriver.')}
-      ${tg('accept_voice', 'Recevoir des notes vocales', 'Envoyées par des membres Premium, écoutables une seule fois.')}
+      ${tg('accept_voice', 'Recevoir des notes vocales', '8 s (15 s pour les membres Premium), écoutables une seule fois.')}
       ${tg('accept_photo', 'Recevoir des photos floues', 'Envoyées par des membres Premium, révélées 10 secondes si tu le choisis.')}
     </div>
     <div class="card" style="padding:6px 18px;gap:0">
@@ -987,7 +997,6 @@ function dropVoiceNow() {
   S.voice = null;
 }
 async function startRecording() {
-  if (!isPremium()) return A.openPremium();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
     return toast('Ton navigateur ne permet pas d’enregistrer de note vocale.');
   }
@@ -1017,8 +1026,8 @@ async function startRecording() {
   v.timer = setInterval(() => {
     const secs = Math.floor((Date.now() - v.start) / 1000);
     const el = document.getElementById('rec-secs');
-    if (el) el.textContent = String(Math.min(secs, VOICE_MAX));
-    if (Date.now() - v.start >= VOICE_MAX * 1000) stopRecording();
+    if (el) el.textContent = String(Math.min(secs, voiceMax()));
+    if (Date.now() - v.start >= voiceMax() * 1000) stopRecording();
   }, 200);
   render();
 }
@@ -1391,7 +1400,7 @@ const A = {
       const effect = isPremium() ? (S.effect || 0) : 0;
       if (S.voice && S.voice.recording) stopRecording();
       if (S.photo && S.photo.checking) throw new Error('Attends la fin de la vérification de la photo.');
-      const voice = isPremium() && S.voice && S.voice.blob ? await uploadVoice(S.voice.blob) : null;
+      const voice = S.voice && S.voice.blob ? await uploadVoice(S.voice.blob) : null;
       let photo = null;
       try { photo = isPremium() && S.photo && S.photo.blob ? await uploadPhoto(S.photo.blob) : null; }
       catch (e) { if (voice) sb.storage.from('vocaux').remove([voice]).catch(() => {}); throw e; }
@@ -1529,6 +1538,21 @@ const A = {
 };
 
 const F = {
+  async chatText(form) {
+    const input = form.querySelector('[name="chatmsg"]');
+    const body = String(input.value || '').trim();
+    if (!body || !S.chat || S.busy) return;
+    S.busy = true;
+    S.thread = S.thread.concat({ mine: true, body, created_at: new Date().toISOString() });
+    input.value = '';
+    render(); { const b = document.getElementById('bubbles'); if (b && b.lastElementChild) b.lastElementChild.scrollIntoView({ block: 'end' }); }
+    try { await rpc('send_text', { p_session_id: S.chat.session_id, p_body: body }); }
+    catch (e) {
+      const m = errMsg(e); toast(/BAD_TEXT/.test((e && e.message) || '') ? ERRORS.BAD_MSG : m);
+      const again = document.querySelector('[name="chatmsg"]'); if (again && !again.value) again.value = body;
+    }
+    S.busy = false; loadThread(true);
+  },
   async restore(form) {
     const code = String(new FormData(form).get('code') || '').trim();
     if (code.replace(/[^A-Za-z0-9]/g, '').length < 12) { S.error = 'Recopie ton code en entier (BONBON-XXXX-XXXX-XXXX).'; return render(); }

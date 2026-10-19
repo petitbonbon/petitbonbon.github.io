@@ -157,7 +157,9 @@ supabase/functions/stripe-webhook/index.ts   déblocage après paiement
 
 ## Feuille de route Premium (pas encore développé)
 
-**Premium v1 (en place)** : mots personnalisés filtrés, notes vocales (15 s, écoutables une fois), photos floues (révélées 10 s, une fois), bonbons animés (cœurs, étoiles, confettis), 25 bonbons par jour, 12 phrases et 6 humeurs en plus (2 humeurs à la fois), bio de 160 caractères, avatars pixel, thèmes de couleur, tarif réduit aux rencontres.
+**Premium v1 (en place)** : mots personnalisés filtrés, notes vocales de 15 s (8 s en gratuit), photos floues (révélées 10 s, une fois), bonbons animés (cœurs, étoiles, confettis), 25 bonbons par jour, 12 phrases et 6 humeurs en plus (2 humeurs à la fois), bio de 160 caractères, avatars pixel, thèmes de couleur, tarif réduit aux rencontres.
+
+**Gratuit (19 oct. 2026)** : notes vocales de 8 s ; messages libres dans les petits échanges avec 1 personne de sa ville par identité du jour (Premium : sans limite). Relancer `supabase/schema.sql` pour activer.
 **Premium v2 (à venir)** : musique (lien Spotify ou Apple Music en lecteur intégré), discussion libre.
 
 **Discussion libre (Premium)** : prolongement des petits échanges à phrases toutes faites. Ne s'ouvre que si les **deux** personnes l'acceptent explicitement, uniquement entre abonnés. Filtre automatique (contacts, liens, insultes, contenus sexuels) avant réception, signalement en un geste, file de modération humaine. Aucun lien ni numéro autorisé, même en Premium.
