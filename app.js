@@ -140,7 +140,7 @@ const ERRORS = {
   WEEKLY: 'Tu as déjà offert plusieurs bonbons à cette personne cette semaine. Laisse-lui un peu d’air 🍬',
   BAD_TEXT: 'Ton surnom, tes quelques mots ou ta ville contient un contact (numéro, réseau social, lien) ou un mot interdit. Modifie-le pour continuer.',
   GONE: 'Cette personne n’est plus disponible.',
-  ONE_CHAT: 'En gratuit, tu peux écrire librement à une seule personne par identité du jour. Avec Premium, à tout le monde 🍬',
+  ONE_CHAT: 'En gratuit, tu peux écrire librement à 2 personnes par identité du jour. Avec Premium, à tout le monde 🍬',
   SAME_CITY: 'En gratuit, la conversation libre est réservée aux bonbons de ta ville.',
   BAD_MSG: 'Ton message contient un contact (numéro, réseau social, lien) ou un mot interdit. Modifie-le pour l’envoyer.',
   VOICE_LONG: 'Ta note vocale est trop longue : 8 secondes maximum en gratuit.',
@@ -681,7 +681,7 @@ V.tab_chat = () => {
         <input name="chatmsg" maxlength="200" autocomplete="off" placeholder="Écris un petit message…" aria-label="Ton message">
         <button class="btn small" type="submit" ${S.busy ? 'disabled' : ''}>Envoyer</button>
       </form>
-      <span class="small" style="width:100%">${isPremium() ? 'Bienveillant, sans numéro, réseau social ni lien.' : 'Gratuit avec une personne de ta ville. Bienveillant, sans numéro, réseau social ni lien.'}</span>
+      <span class="small" style="width:100%">${isPremium() ? 'Bienveillant, sans numéro, réseau social ni lien.' : 'Gratuit avec 2 personnes de ta ville. Bienveillant, sans numéro, réseau social ni lien.'}</span>
     </div>
   </div>`;
 };
@@ -1239,9 +1239,9 @@ async function handleProfilePhoto(file) {
     if ((p.Porn || 0) + (p.Hentai || 0) > 0.4 || (p.Sexy || 0) > 0.6) {
       throw new Error('Cette photo ne peut pas être utilisée : pas de nudité ni de photo suggestive sur Petit Bonbon.');
     }
-    // 36 pixels de large : des formes et des couleurs, pas assez pour reconnaître un visage
+    // 48 pixels de large : des formes et des couleurs, pas les traits d'un visage
     const t = document.createElement('canvas');
-    t.width = 36; t.height = Math.max(1, Math.min(60, Math.round(36 * c.height / c.width)));
+    t.width = 48; t.height = Math.max(1, Math.min(80, Math.round(48 * c.height / c.width)));
     t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
     // Aperçus de chaque style, calculés sur le téléphone ; on choisit avant d'enregistrer
     S.pphotoDraft = { style: 'normal', previews: Object.fromEntries(PHOTO_STYLES.map((st) => [st.id, stylizePixels(t, st)])) };

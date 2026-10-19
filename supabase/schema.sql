@@ -160,7 +160,7 @@ create table if not exists public.messages (
 );
 create index if not exists messages_pair_idx on public.messages (sender_id, recipient_id, created_at desc);
 create index if not exists messages_time_idx on public.messages (created_at);
--- Conversation libre : texte écrit (200 caractères, filtré). Gratuit avec 1 personne
+-- Conversation libre : texte écrit (200 caractères, filtré). Gratuit avec 2 personnes
 -- de sa ville par identité du jour ; Premium : sans limite.
 alter table public.messages add column if not exists body text;
 alter table public.messages alter column phrase_id drop not null;
@@ -671,10 +671,10 @@ begin
   select * into them from public.sessions where id = p_session_id and expires_at > now();
   if me.id is null or them.id is null or them.user_id = uid or not public.chat_open(uid, them.user_id) then raise exception 'GONE'; end if;
   if not public.is_premium(uid) then
-    -- Gratuit : une personne de sa ville, une seule par identité du jour
+    -- Gratuit : des personnes de sa ville, 2 au maximum par identité du jour
     if public.norm_city(me.current_city) <> public.norm_city(them.current_city) then raise exception 'SAME_CITY'; end if;
-    if exists (select 1 from public.messages m where m.sender_id = uid and m.body is not null
-               and m.created_at >= me.created_at and m.recipient_id <> them.user_id) then raise exception 'ONE_CHAT'; end if;
+    if (select count(distinct m.recipient_id) from public.messages m where m.sender_id = uid and m.body is not null
+        and m.created_at >= me.created_at and m.recipient_id <> them.user_id) >= 2 then raise exception 'ONE_CHAT'; end if;
   end if;
   if exists (select 1 from public.messages where sender_id = uid and recipient_id = them.user_id
              and created_at > now() - interval '2 seconds') then raise exception 'SLOW'; end if;
