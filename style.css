@@ -377,10 +377,8 @@ body.veiled #app, body.veiled .banner, body.veiled .sheet-back { filter: blur(18
 .react .emo { font-size: 18px; line-height: 1; }
 .reacted { font-size: 15px; font-weight: 700; color: var(--mint-deep); }
 
-/* ---------- « Pas gentil » et bonbon masqué ---------- */
-.not-nice { align-self: flex-start; min-height: 36px; font-size: 14px; }
+/* ---------- Bonbon signalé (masqué) ---------- */
 .masked { --fill: transparent; --shade: transparent; outline: 2px dashed var(--locked); outline-offset: -2px; color: var(--muted); }
-.masked .row { justify-content: space-between; }
 
 /* ---------- Débuts de phrases (compliments guidés) ---------- */
 .starters { display: flex; gap: 10px; overflow-x: auto; padding: 4px 4px 8px; margin: 0 -4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }

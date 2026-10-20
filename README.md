@@ -107,15 +107,13 @@ select recovery_code, sub_status, sub_period_end from profiles where stripe_cust
 - **Compliments guidés** : débuts de phrases à toucher pour les mots personnalisés et la conversation libre (liste `STARTERS`).
 - **Réactions sans texte** : 💌 Merci, 🍬 Touché·e, 🍭 J'ai souri, 🍫 Ça m'a fait du bien. L'expéditeur voit la réaction.
 - **Compteur de ville** : « 128 bonbons échangés à Orléans cette semaine » (un simple total).
-- **« Ce n'était pas gentil »** : le bonbon est masqué tout de suite ; 5 secondes pour annuler, puis signalement + blocage (comme « Signaler »).
+- **Bonbon signalé masqué** : après un signalement (menu ⚠), le texte du bonbon disparaît de « Ma box ».
 - **Filtre renforcé** : moqueries et méchancetés (« moche », « ta gueule », « personne ne t'aime »…) refusées par la base, avec un rappel doux qui s'affiche dès la saisie.
 - **Pause bonbons 🌙** : plus rien n'arrive jusqu'à demain 7 h, on disparaît de « Découvrir » ; ça se rallume tout seul.
 
 ```sql
 -- Réactions reçues cette semaine
 select reaction, count(*) from bonbons where status = 'thanked' and created_at > now() - interval '7 days' group by 1;
--- Signalements « pas gentil »
-select created_at, pseudo_seen from reports where reason = 'Ce n’était pas gentil' and not handled order by created_at desc;
 ```
 
 ## Pilotage au quotidien (Supabase › SQL Editor)

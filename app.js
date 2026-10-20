@@ -832,11 +832,7 @@ V.tab_sentok = () => `<section class="screen center">
 V.tab_inbox = () => {
   const city = cityLabel(S.status);
   const card = (m) => {
-    // Signalé ou « pas gentil » : le message disparaît tout de suite
-    if (S.masking && S.masking[m.id]) return `<article class="card masked">
-        <span>Bonbon masqué. Merci de nous l’avoir dit.</span>
-        <div class="row"><span class="small">L’équipe est prévenue dans quelques secondes…</span><button class="link" data-a="unmask" data-id="${esc(m.id)}">Annuler</button></div>
-      </article>`;
+    // Signalé : le message disparaît
     if (m.status === 'reported') return `<article class="card masked">
         <span>Bonbon masqué · ${esc(m.sender_pseudo)}</span>
         <span class="small">Signalé et bloqué. Cette personne ne peut plus t’écrire, quel que soit son pseudo.</span>
@@ -870,7 +866,6 @@ V.tab_inbox = () => {
       </div>
       ${m.replied ? '<span class="reacted">Tu lui as renvoyé un bonbon.</span>' : ''}
       ${m.status === 'thanked' ? `<span class="reacted">Tu as répondu : ${esc(reactionText(m.reaction))}</span>` : ''}
-      <button class="link muted not-nice" data-a="notNice" data-id="${esc(m.id)}">🙁 Ce n’était pas gentil</button>
     </article>`;
   };
   const rec = S.inbox.length ? S.inbox.map(card).join('')
@@ -1767,21 +1762,6 @@ async function poll() {
 setInterval(poll, 20000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
-async function sendNotNice(id) {
-  if (!S.masking || !S.masking[id]) return;
-  clearTimeout(S.masking[id]); delete S.masking[id];
-  const m = S.inbox.find((x) => x.id === id);
-  if (m) m.status = 'reported';
-  JAR.remove(id);
-  render();
-  try {
-    await rpc('report', { p_reason: 'Ce n’était pas gentil', p_bonbon_id: id, p_session_id: null });
-    toast('Merci. Cette personne ne pourra plus t’écrire.');
-    loadData();
-  } catch (e) { toast(errMsg(e)); }
-}
-function flushNotNice() { if (S.masking) Object.keys(S.masking).forEach((id) => sendNotNice(id)); }
-
 // Qui bloquer ou signaler : une personne d'« Autour de toi » (d.i) ou l'auteur d'un bonbon reçu (d.id)
 function reportTarget(d) {
   if (d.chat && S.chat) return { sessionId: S.chat.session_id, pseudo: S.chat.pseudo, fromChat: true };
@@ -1958,19 +1938,6 @@ const A = {
       if (m.effect) { markFxPlayed(m.id); playEffect(m.effect); } else playEffect(4);
       setTimeout(() => { if (S.justOpened === m.id) S.justOpened = null; }, 700);
     }, reducedMotion() ? 120 : 560);
-  },
-  // « Ce n'était pas gentil » : masqué tout de suite, signalé après quelques secondes (annulable)
-  notNice(d) {
-    const m = S.inbox.find((x) => x.id === d.id); if (!m) return;
-    S.masking = S.masking || {};
-    if (S.masking[m.id]) return;
-    S.masking[m.id] = setTimeout(() => sendNotNice(m.id), 5000);
-    S.cardMenu = null; buzz(10); render();
-  },
-  unmask(d) {
-    if (!S.masking || !S.masking[d.id]) return;
-    clearTimeout(S.masking[d.id]); delete S.masking[d.id];
-    render(); toast('D’accord, le bonbon est de retour.');
   },
   async togglePause() {
     const on = !pausedUntil();
@@ -2299,8 +2266,7 @@ const veil = (on) => document.body.classList.toggle('veiled', on);
 document.addEventListener('visibilitychange', () => veil(document.hidden));
 window.addEventListener('blur', () => veil(true));
 window.addEventListener('focus', () => veil(false));
-window.addEventListener('pagehide', () => { veil(true); flushNotNice(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushNotNice(); });
+window.addEventListener('pagehide', () => veil(true));
 window.addEventListener('pageshow', () => veil(false));
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('.card, .quote, .bio, .photo-view')) e.preventDefault(); });
 document.addEventListener('copy', (e) => { if (window.getSelection && e.target.closest && e.target.closest('.card')) e.preventDefault(); });
