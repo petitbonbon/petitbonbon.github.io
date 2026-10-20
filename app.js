@@ -675,8 +675,7 @@ V.main = () => {
   </nav>`}
   ${S.banner ? `<button class="banner" data-a="openBanner">${candy('#F38BAF', 36)}<span><strong>Un petit bonbon pour toi</strong><span>${S.banner > 1 ? `${S.banner} inconnus t’ont envoyé un compliment.` : 'Un inconnu t’a envoyé un compliment.'}</span></span></button>` : ''}
   ${S.report ? V.reportSheet() : ''}
-  ${S.premium ? V.premiumSheet() : ''}
-  ${S.story ? V.storySheet() : ''}`;
+  ${S.premium ? V.premiumSheet() : ''}`;
 };
 
 V.personCard = (p, i, city) => {
@@ -870,7 +869,6 @@ V.tab_inbox = () => {
           `<button class="react" data-a="react" data-id="${esc(m.id)}" data-r="${i}"><span class="emo" aria-hidden="true">${r.emo}</span>${esc(r.label)}</button>`).join('')}</div>` : ''}
       <div class="row">
         ${m.can_reply ? `<button class="btn small" data-a="replyBonbon" data-id="${esc(m.id)}">Renvoyer un bonbon</button>` : ''}
-        <button class="btn small ghost" data-a="storyOpen" data-id="${esc(m.id)}" ${S.storyBusy ? 'disabled' : ''}>📸 En story</button>
       </div>
       ${m.replied ? '<span class="reacted">Tu lui as renvoyé un bonbon.</span>' : ''}
       ${m.status === 'thanked' ? `<span class="reacted">Tu as répondu : ${esc(reactionText(m.reaction))}</span>` : ''}
@@ -1085,87 +1083,6 @@ V.premiumCard = () => {
     <span class="small">Stripe te demandera l’e-mail utilisé au paiement et t’enverra un lien.</span>` : ''}
   </div>`;
 };
-
-// ---------- Carte story (Instagram, Snapchat, WhatsApp…) ----------------
-// 1er appui : l'image est dessinée et affichée en aperçu.
-// 2e appui : « Partager » ouvre le menu du téléphone (Instagram › Story…).
-// Deux temps, car iPhone n'autorise le partage que juste après un appui.
-const APP_URL = 'petitbonbon.github.io';
-V.storySheet = () => `<div class="sheet-back" data-a="storyClose">
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Partager en story" data-stop="1">
-    <h3 style="margin:0">Ton bonbon en story 🍬</h3>
-    <img class="story-preview" src="${esc(S.story.url)}" alt="Aperçu de la story : « ${esc(S.story.text)} »">
-    <p class="small" style="margin:0">Dans Instagram, ajoute le sticker <strong>Lien 🔗</strong> avec ${APP_URL} pour que tes amis trouvent l’app.</p>
-    ${navigator.canShare && navigator.canShare({ files: [S.story.file] }) ? '<button class="btn" data-a="storyShare">Partager</button>' : ''}
-    <a class="btn ghost" href="${esc(S.story.url)}" download="petit-bonbon.png">Enregistrer l’image</a>
-    <button class="link muted" data-a="storyClose">Fermer</button>
-  </div>
-</div>`;
-
-function wrapLines(g, text, maxW) {
-  const lines = []; let line = '';
-  text.split(/[ \t\n]+/).forEach((w) => {
-    const t = line ? line + ' ' + w : w;
-    if (g.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
-  });
-  if (line) lines.push(line);
-  return lines;
-}
-// Bloc aux coins crantés + ombre en aplat, comme dans l'app
-function pixelBox(g, x, y, w, h, fill, shade, u) {
-  g.fillStyle = shade;
-  g.fillRect(x + u, y + 2 * u, w - 2 * u, h); g.fillRect(x, y + 3 * u, w, h - 4 * u);
-  g.fillStyle = fill;
-  g.fillRect(x + u, y, w - 2 * u, h); g.fillRect(x, y + u, w, h - 2 * u);
-}
-async function storyImage(text, city) {
-  const W = 1080, H = 1920;
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  try { await Promise.all([document.fonts.load('700 70px "Pixelify Sans"'), document.fonts.load('30px "Press Start 2P"')]); } catch (_) {}
-  // Fond crème à pois
-  g.fillStyle = '#FFF8F0'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#F6E7D6';
-  for (let y = 24; y < H; y += 48) for (let x = 24; x < W; x += 48) g.fillRect(x - 3, y - 3, 6, 6);
-  // Bonbon pixel
-  const px = 24, cx = (W - 22 * px) / 2, cy = 300;
-  CANDY_PIXELS.forEach((row, y) => [...row].forEach((ch, x) => {
-    if (ch === '.') return;
-    g.fillStyle = ch === '#' ? '#FF9EC4' : ch === 'o' ? 'rgba(255,255,255,0.55)' : '#FFFFFF';
-    g.fillRect(cx + x * px, cy + y * px, px, px);
-  }));
-  // Phrase du compliment, dans une bulle lilas
-  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  // La taille du texte s'adapte pour que les mots longs (Premium) tiennent
-  let size = 70, lines, lh;
-  for (;;) {
-    g.font = `700 ${size}px "Pixelify Sans", system-ui, sans-serif`;
-    lines = wrapLines(g, '«\u00a0' + text.replace(/ ([!?:;»])/g, '\u00a0$1') + '\u00a0»', 760); lh = Math.round(size * 1.3);
-    if (200 + lines.length * lh + 110 <= 720 || size <= 36) break;
-    size -= 6;
-  }
-  const boxH = 200 + lines.length * lh;
-  const boxTop = Math.round(660 + (720 - boxH - 110) / 2);
-  pixelBox(g, 110, boxTop, 860, boxH, '#ECE4FF', '#CDBDF2', 12);
-  g.fillStyle = '#B0245A'; g.font = '26px "Press Start 2P", monospace';
-  g.fillText('UN·E INCONNU·E M’A DIT', W / 2, boxTop + 90);
-  g.fillStyle = '#3A2D4D'; g.font = `700 ${size}px "Pixelify Sans", system-ui, sans-serif`;
-  lines.forEach((l, i) => g.fillText(l, W / 2, boxTop + 110 + lh * 0.9 + i * lh));
-  if (city) {
-    g.font = '500 48px "Pixelify Sans", system-ui, sans-serif'; g.fillStyle = '#6E6280';
-    g.fillText("📍 " + city, W / 2, boxTop + boxH + 95);
-  }
-  // Signature et lien (au-dessus de la zone des boutons Instagram)
-  g.fillStyle = '#3A2D4D'; g.font = '40px "Press Start 2P", monospace';
-  g.fillText('PETIT BONBON', W / 2, 1480);
-  g.font = '500 42px "Pixelify Sans", system-ui, sans-serif'; g.fillStyle = '#6E6280';
-  g.fillText('Des inconnus. Des compliments.', W / 2, 1552);
-  pixelBox(g, 230, 1600, 620, 104, '#FF9EC4', '#F07DAA', 10);
-  g.fillStyle = '#3A2D4D'; g.font = '700 46px "Pixelify Sans", system-ui, sans-serif';
-  g.fillText(APP_URL, W / 2, 1668);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  return blob;
-}
 
 V.premiumSheet = () => {
   const ready = !!C.PREMIUM_PAYMENT_LINK;
@@ -2071,24 +1988,6 @@ const A = {
     toast('Toutes tes données ont été effacées.');
   },
   openBanner() { S.banner = 0; S.tab = 'inbox'; render(); loadData(); },
-  async storyOpen(d) {
-    const m = S.inbox.find((x) => x.id === d.id);
-    if (!m || S.storyBusy) return;
-    const text = m.custom_text || COMPLIMENTS[m.compliment_id] || '';
-    S.storyBusy = true; render();
-    try {
-      const blob = await storyImage(text, cityLabel(S.status));
-      if (S.story) URL.revokeObjectURL(S.story.url);
-      S.story = { text, file: new File([blob], 'petit-bonbon.png', { type: 'image/png' }), url: URL.createObjectURL(blob) };
-    } catch (_) { toast('Impossible de créer l’image. Réessaie.'); }
-    S.storyBusy = false; render();
-  },
-  async storyShare() {
-    if (!S.story) return;
-    try { await navigator.share({ files: [S.story.file] }); }
-    catch (e) { if (e && e.name !== 'AbortError') toast('Partage impossible : enregistre l’image puis ajoute-la à ta story.'); }
-  },
-  storyClose() { if (S.story) URL.revokeObjectURL(S.story.url); S.story = null; render(); },
   async share() {
     const data = { title: 'Petit Bonbon', text: 'Des inconnus. Des compliments. Aucune pression.', url: location.origin + location.pathname };
     try {
@@ -2284,7 +2183,6 @@ document.addEventListener('contextmenu', (e) => { if (e.target.closest('.card, .
 document.addEventListener('copy', (e) => { if (window.getSelection && e.target.closest && e.target.closest('.card')) e.preventDefault(); });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && S.story) { A.storyClose(); return; }
   if (e.key === 'Escape' && (S.report || S.premium || S.cardMenu !== null)) { S.report = null; S.premium = false; S.cardMenu = null; render(); }
 });
 
