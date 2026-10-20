@@ -147,7 +147,170 @@ const ERRORS = {
   NO_SESSION: 'Ton identité du jour a expiré. Recrée-la pour continuer.',
   BAD_MOOD: 'Humeur non reconnue.',
   AUTH: 'Ta session a expiré, reconnecte-toi.',
+  PAUSED: 'Cette personne fait une pause bonbons pour l’instant 🌙 Réessaie demain.',
 };
+
+// ---------- Bien-être -------------------------------------------------
+// Réactions sans texte à un bonbon reçu. L'ordre compte : la base stocke l'indice (0 à 3).
+const REACTIONS = [
+  { emo: '💌', label: 'Merci' },
+  { emo: '🍬', label: 'Touché·e' },
+  { emo: '🍭', label: 'J’ai souri' },
+  { emo: '🍫', label: 'Ça m’a fait du bien' },
+];
+const reactionText = (i) => { const r = REACTIONS[i] || REACTIONS[0]; return `${r.emo} ${r.label}`; };
+// Débuts de phrases pour les timides (mots personnalisés et conversation libre)
+const STARTERS = ['Tu as l’air de quelqu’un qui ', 'Merci pour ', 'J’aime ta façon de ', 'Ça m’a fait sourire quand ', 'Je te souhaite ', 'Ta ville a de la chance ', 'Continue de '];
+// Le bonbon du jour : une suggestion douce, la même pour tout le monde ce jour-là
+const DAILY = [
+  'Écoute la voix d’une carte, puis offre-lui un bonbon.',
+  'Dis merci à quelqu’un de ta ville, dans l’app ou en vrai.',
+  'Complimente quelqu’un sur son humeur du jour.',
+  'Offre un bonbon à la personne qui a le pseudo le plus drôle.',
+  'Souris à un·e inconnu·e dans la rue. Ça compte aussi.',
+  'Envoie un bonbon à quelqu’un qui se dit « Timide ».',
+  'Dis à un·e collègue ce qu’il ou elle fait bien.',
+  'Laisse un mot gentil sur un post-it, quelque part.',
+  'Remercie la personne qui t’a servi ton café.',
+  'Offre un bonbon à quelqu’un « Pas dans son assiette ».',
+  'Note trois choses qui t’ont fait du bien aujourd’hui.',
+  'Relis un compliment de ton bocal à bonbons.',
+  'Complimente quelqu’un sur ses quelques mots.',
+  'Écris à un·e ami·e que tu n’as pas vu·e depuis longtemps.',
+  'Tiens la porte à quelqu’un, avec le sourire.',
+  'Dis « bonne journée » à un·e chauffeur·se de bus.',
+  'Offre un bonbon à quelqu’un de passage dans ta ville.',
+  'Fais un compliment sincère à quelqu’un de ta famille.',
+  'Remercie quelqu’un pour un petit geste qu’on oublie souvent.',
+  'Fais-toi un compliment à toi-même. Oui, à voix haute.',
+  'Prends des nouvelles d’un·e voisin·e.',
+  'Laisse un avis gentil à un petit commerce que tu aimes.',
+  'Offre un bonbon à la première carte qui apparaît.',
+  'Dis à quelqu’un que tu as aimé passer du temps avec lui ou elle.',
+  'Réponds à un bonbon reçu d’un emoji-bonbon.',
+  'Trouve une qualité chez quelqu’un qui t’agace un peu.',
+  'Complimente une tenue, une coiffure ou une paire de chaussures.',
+  'Partage Petit Bonbon avec quelqu’un qui a besoin de douceur.',
+  'Remercie un·e soignant·e, un·e prof ou un·e facteur·rice.',
+  'Pose ton téléphone dix minutes et regarde autour de toi.',
+  'Envoie un bonbon à quelqu’un « Rêveur·se ».',
+  'Dis à quelqu’un que son travail compte.',
+  'Complimente une idée plutôt qu’une apparence.',
+  'Envoie la photo d’un joli coin de ta ville à un·e proche.',
+  'Laisse passer quelqu’un devant toi à la caisse.',
+  'Écris à quelqu’un qui t’a aidé·e il y a longtemps.',
+  'Complimente quelqu’un sur sa patience.',
+  'Offre un bonbon à quelqu’un « Curieux·se ».',
+  'Apprends le prénom de quelqu’un que tu croises souvent.',
+  'Dis « je suis fier·e de toi » à quelqu’un.',
+  'Garde un bonbon pour ce soir et offre-le avant de dormir.',
+  'Remercie quelqu’un de t’avoir écouté·e.',
+  'Complimente quelqu’un sur son rire.',
+  'Offre un bonbon à quelqu’un qui a mis sa voix sur sa carte.',
+  'Souhaite bon courage à quelqu’un qui a une journée chargée.',
+  'Dis à un·e ami·e ce que tu admires chez lui ou elle.',
+  'Ramasse un déchet qui traîne dans ta rue.',
+  'Complimente quelqu’un sur ses goûts : musique, livre, film.',
+  'Renvoie un bonbon à quelqu’un qui t’en a offert un.',
+  'Fais une pause et respire trois grandes fois.',
+  'Dis merci à quelqu’un en le regardant dans les yeux.',
+  'Offre un bonbon à quelqu’un « Calme ».',
+  'Écris un petit mot doux à quelqu’un de ta maison.',
+  'Complimente quelqu’un sur son énergie.',
+  'Encourage quelqu’un qui apprend quelque chose de nouveau.',
+  'Offre un bonbon sans rien attendre en retour.',
+  'Raconte à quelqu’un un souvenir heureux que vous partagez.',
+  'Dis bonjour à quelqu’un que tu ne salues jamais.',
+  'Complimente quelqu’un sur sa gentillesse.',
+  'Offre ton dernier bonbon du jour à quelqu’un de discret.',
+];
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+const dailyToday = () => { const d = new Date(); return DAILY[Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) % DAILY.length]; };
+const dailyDone = () => { try { return localStorage.getItem('pb_daily_done') === todayKey(); } catch (_) { return false; } };
+
+// Vérification douce pendant qu'on écrit (le vrai filtre est dans la base : text_problem)
+const MEAN_WORDS = 'moche|moches|laid|laide|laids|laides|laideron\\w*|grosse vache|gros porc|debile\\w*|idiot|idiote|idiots|idiotes|cretin\\w*|abruti\\w*|gogol\\w*|mongol\\w*|attarde\\w*|boloss|bouffon\\w*|pouffiasse\\w*|petasse\\w*|ta gueule|tg|va mourir|va crever|suicide[ -]toi|tue[ -]toi|kys|kill yourself|ugly|loser|stupid|t.es nul\\w*|tu es nul\\w*|personne ne t.aime'
+  + '|con|connard|connasse|conne|salope|salop|pute|putain|pd|pede|encul\\w*|ntm|fdp|batard|nique\\w*|bite|chatte|couille\\w*|sexe|sexy|nude\\w*|nudes|porn\\w*|cul|baise\\w*|suce|suces|sucer|suceu\\w*|branle\\w*|bander|nazi\\w*|hitler|negre\\w*|negro|bougnoul\\w*|youpin\\w*|gouine|tapette|tarlouze|viol|viols|violer|violeur\\w*|fuck\\w*|shit|bitch\\w*|dick|pussy|cock|slut|whore|nigg\\w*|fag|fags|faggot\\w*|cunt';
+const MEAN_RE = new RegExp(`(?:^|[^a-z0-9])(?:${MEAN_WORDS})(?=$|[^a-z0-9])`);
+const APPS_RE = /(?:^|[^a-z0-9])(?:insta|instagram|snap|snapchat|whatsapp|watsap|wa\.me|telegram|tiktok|facebook|fb|discord|onlyfans|mym|tinder|kik|wechat|messenger)(?=$|[^a-z0-9])/;
+const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', $: 's', '€': 'e' };
+function kindProblem(t) {
+  const raw = String(t || '').toLowerCase();
+  if (!raw.trim()) return null;
+  if (/(\d[\s.\-/]*){8,}/.test(raw) || /@\w/.test(raw) || /(https?:\/\/|www\.)/.test(raw)
+      || /\w\.(com|fr|net|org|io|be|ch|me|ly|gg|app|co|tv|link|bio)\b/.test(raw)) return 'contact';
+  const x = ' ' + raw.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[013457$€]/g, (c) => LEET[c]) + ' ';
+  if (APPS_RE.test(x)) return 'contact';
+  if (MEAN_RE.test(x)) return 'mean';
+  return null;
+}
+const KIND_HINT = {
+  mean: 'Ce mot ne passera pas : ici, on ne se dit que des choses douces 🍬',
+  contact: 'Pas de numéro, de réseau social ni de lien : ce serait bloqué.',
+};
+
+// Vibrations (Android) : un petit frisson quand un bonbon arrive ou qu'on le déballe
+const HAPTIC = {
+  ok: typeof navigator !== 'undefined' && 'vibrate' in navigator, on: true,
+  load() { try { this.on = localStorage.getItem('pb_haptic') !== 'off'; } catch (_) {} },
+  save() { try { localStorage.setItem('pb_haptic', this.on ? 'on' : 'off'); } catch (_) {} },
+};
+HAPTIC.load();
+function buzz(pattern) { if (HAPTIC.ok && HAPTIC.on) { try { navigator.vibrate(pattern); } catch (_) {} } }
+const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+// ---------- Bocal à bonbons -------------------------------------------
+// Les compliments reçus s'y rangent tout seuls, une fois déballés. Ils restent
+// sur ce téléphone (rien n'est envoyé), même quand l'identité du jour s'efface.
+const JAR_MAX = 300;
+const JAR = {
+  list() { try { return JSON.parse(localStorage.getItem('pb_jar') || '[]'); } catch (_) { return []; } },
+  save(l) { try { localStorage.setItem('pb_jar', JSON.stringify(l.slice(0, JAR_MAX))); } catch (_) {} },
+  remove(id) { this.save(this.list().filter((x) => x.id !== id)); },
+};
+// Bonbons déjà déballés (les autres arrivent emballés dans « Ma box »)
+let unwrapped = null;
+try { const v = localStorage.getItem('pb_unwrapped'); unwrapped = v === null ? null : new Set(JSON.parse(v)); } catch (_) { unwrapped = new Set(); }
+const isUnwrapped = (id) => !!(unwrapped && unwrapped.has(id));
+function saveUnwrapped() { try { localStorage.setItem('pb_unwrapped', JSON.stringify([...unwrapped].slice(-400))); } catch (_) {} }
+function markUnwrapped(id) { if (!unwrapped) unwrapped = new Set(); unwrapped.add(id); saveUnwrapped(); }
+function jarSync(list) {
+  let jar = JAR.list(), changed = false;
+  const have = new Set(jar.map((x) => x.id));
+  list.forEach((m) => {
+    if (m.status === 'reported') { if (have.has(m.id)) { jar = jar.filter((x) => x.id !== m.id); changed = true; } return; }
+    if (have.has(m.id) || (m.status === 'open' && !isUnwrapped(m.id))) return;
+    const text = m.custom_text || COMPLIMENTS[m.compliment_id] || '';
+    if (!text) return;
+    jar.push({ id: m.id, text, from: m.sender_pseudo, city: cityLabel(S.status), at: m.created_at });
+    have.add(m.id); changed = true;
+  });
+  if (changed) { jar.sort((a, b) => (a.at < b.at ? 1 : -1)); JAR.save(jar); }
+}
+// Un bocal en pixel art qui se remplit d'un bonbon par compliment reçu
+function jarSvg(n, size = 120) {
+  const glass = '#CDBDF2', cols = ['#FF9EC4', '#9EDCC3', '#FFE07A', '#B9A6F0', '#FFB38A'];
+  let r = '';
+  const R = (x, y, w, h, c) => { r += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`; };
+  R(4, 0, 12, 1, '#F07DAA'); R(3, 1, 14, 2, '#FF9EC4'); R(4, 3, 12, 1, '#F07DAA');   // couvercle
+  R(5, 4, 10, 1, glass);                                                              // col
+  R(3, 5, 14, 1, glass); R(2, 6, 1, 16, glass); R(17, 6, 1, 16, glass); R(3, 22, 14, 1, glass);
+  R(3, 6, 14, 16, 'rgba(236,228,255,.35)');                                           // verre
+  let left = Math.min(n, 104);
+  for (let k = 0; left > 0 && k < 16; k++) {
+    const off = k % 2, slots = off ? 6 : 7;
+    for (let i = 0; i < slots && left > 0; i++, left--) R(3 + off + 2 * i, 21 - k, 2, 1, cols[(i * 3 + k * 2) % cols.length]);
+  }
+  R(4, 8, 1, 7, 'rgba(255,255,255,.7)');                                               // reflet
+  return `<svg class="pixel" width="${size}" height="${Math.round(size * 23 / 20)}" viewBox="0 0 20 23" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+}
+
+// ---------- Installer l'app (écran d'accueil) --------------------------
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (S.view === 'main') render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; S.installed = true; toast('Petit Bonbon est sur ton écran d’accueil 🍬'); if (S.view === 'main') render(); });
+const isStandalone = () => !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone);
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 // ---------- Sons -------------------------------------------------------
 // Les fichiers sont dans le dossier sons/. S'il en manque un, l'app reste
@@ -434,7 +597,8 @@ V.identity = () => {
   <h2>Qui es-tu aujourd’hui ?</h2>
   <form class="stack" style="gap:26px" data-f="identity">
     <div class="field"><label for="pseudo">Nom ou surnom</label>
-      <input id="pseudo" name="pseudo" maxlength="20" value="${esc(f.pseudo)}" placeholder="Quelqu’un de passage" data-bind="pseudo"></div>
+      <input id="pseudo" name="pseudo" maxlength="20" value="${esc(f.pseudo)}" placeholder="Quelqu’un de passage" data-bind="pseudo">
+      ${V.kindHint('pseudo', f.pseudo)}</div>
     <div class="stack" style="gap:10px">
       <span class="label">Ton humeur</span>
       <div class="chips">${MOODS.map((m) => `<button type="button" class="chip" data-a="mood" data-mood="${esc(m)}" aria-pressed="${f.moods.includes(m)}">${esc(m)}</button>`).join('')}</div>
@@ -454,11 +618,46 @@ V.identity = () => {
 
 const cityLabel = (s) => (s && s.session ? s.session.current_city : '');
 
+// ---------- Pause bonbons ---------------------------------------------
+const pausedUntil = () => {
+  const u = S.status && S.status.paused_until;
+  return u && new Date(u) > new Date() ? new Date(u) : null;
+};
+function nextMorning() {   // demain 7 h (ou ce matin 7 h s'il est encore tôt)
+  const d = new Date(); d.setHours(7, 0, 0, 0);
+  if (d <= new Date()) d.setDate(d.getDate() + 1);
+  return d;
+}
+const pauseWhen = (d) => (d.getDate() === new Date().getDate() ? `${d.getHours()} h` : `demain ${d.getHours()} h`);
+V.pauseBanner = () => {
+  const p = pausedUntil();
+  return p ? `<div class="pause-banner">🌙<span>Pause bonbons jusqu’à ${pauseWhen(p)}. Personne ne peut t’en envoyer. Prends soin de toi.</span><button class="btn small ghost" data-a="togglePause">Reprendre</button></div>` : '';
+};
+
+// ---------- Le bonbon du jour -----------------------------------------
+V.daily = () => {
+  const done = dailyDone();
+  return `<div class="daily${done ? ' done' : ''}">
+    ${candy(done ? '#1D6B5E' : '#C2255C', 40)}
+    <span class="daily-txt"><span class="kicker">LE BONBON DU JOUR</span><span>${esc(dailyToday())}</span>
+      ${done ? '<span>C’est fait. Ta ville est un peu plus douce grâce à toi 🍬</span>' : '<button class="btn small dark" style="align-self:flex-start" data-a="dailyDone">C’est fait !</button>'}</span>
+  </div>`;
+};
+
+// ---------- Installer ---------------------------------------------------
+V.installCard = (dismissable) => {
+  if (isStandalone() || S.installed || (dismissable && S.hideInstall)) return '';
+  const x = dismissable ? '<button class="events-x" data-a="hideInstall" aria-label="Masquer">×</button>' : '';
+  if (installEvt) return `<div class="install">📲<span><strong>Installe Petit Bonbon</strong> sur ton écran d’accueil, comme une vraie app.</span><button class="btn small" data-a="install">Installer</button>${x}</div>`;
+  if (isIOS()) return `<div class="install">📲<span>Pour l’installer comme une app : touche <strong>Partager</strong>, puis <strong>Sur l’écran d’accueil</strong>.</span>${x}</div>`;
+  return '';
+};
+
 V.main = () => {
   const s = S.status.session;
   const unread = S.inbox.filter((m) => m.status === 'open').length + S.convs.filter(convUnread).length;
   const body = (V['tab_' + S.tab] || V.tab_discover)();
-  const navOn = (t) => (S.tab === t || (t === 'discover' && (S.tab === 'send' || S.tab === 'sentok')) || (t === 'inbox' && S.tab === 'chat') ? 'aria-current="page"' : '');
+  const navOn = (t) => (S.tab === t || (t === 'discover' && (S.tab === 'send' || S.tab === 'sentok')) || (t === 'inbox' && (S.tab === 'chat' || S.tab === 'jar')) ? 'aria-current="page"' : '');
   return `
   <header class="topbar">
     <div class="who"><span>Aujourd’hui tu es</span><strong>${esc(s.pseudo)}</strong></div>
@@ -528,12 +727,18 @@ V.tab_discover = () => {
       <h2>Autour de toi</h2>
       <button class="btn small ghost" data-a="refresh" aria-label="Actualiser" style="min-width:44px;padding:0 12px">${ICON.refresh}</button>
     </div>
+    ${V.pauseBanner()}
+    ${S.pulse === null || S.pulse === undefined ? '' : `<p class="pulse"><span class="pulse-heart" aria-hidden="true"></span><span>${S.pulse > 0
+      ? `<strong>${S.pulse} bonbon${S.pulse > 1 ? 's' : ''}</strong> échangé${S.pulse > 1 ? 's' : ''} à ${esc(city)} cette semaine`
+      : `Sois la première personne à offrir un bonbon à ${esc(city)} cette semaine`}</span></p>`}
+    <p class="small" style="margin:0 4px">${left} bonbon${left > 1 ? 's' : ''} à offrir aujourd’hui. Aucune distance n’est affichée.</p>
+    ${list}
+    ${V.daily()}
     ${S.hideEvents ? '' : `<div class="events">
       <span class="events-txt"><strong>Bientôt : les rencontres live 🍬</strong><span>${esc(EVENTS_MSG)}</span></span>
       <button class="events-x" data-a="hideEvents" aria-label="Masquer ce message">×</button>
     </div>`}
-    <p class="small" style="margin:0 4px">${left} bonbon${left > 1 ? 's' : ''} à offrir aujourd’hui. Aucune distance n’est affichée.</p>
-    ${list}
+    ${V.installCard(true)}
   </div>`;
 };
 
@@ -552,7 +757,9 @@ V.tab_send = () => {
       ? (t.accepts_custom === false
           ? '<p class="note" style="margin:var(--px)">Cette personne préfère recevoir les compliments de la liste.</p>'
           : `<div class="field"><label for="custom">Ou écris ton propre mot <span style="color:var(--pink-deep)">· Premium</span></label>
+              ${V.starters('custom')}
               <textarea id="custom" name="custom" rows="3" maxlength="140" placeholder="Il remplace le compliment choisi au-dessus">${esc(S.custom)}</textarea>
+              ${V.kindHint('custom', S.custom)}
               <span class="small">140 caractères. Bienveillant, sans numéro, réseau social ni lien : il est vérifié avant d’arriver.</span></div>`)
         + (t.accepts_voice === false ? '' : V.voiceBox())
         + (t.accepts_photo === false ? '' : V.photoBox())
@@ -567,6 +774,14 @@ V.tab_send = () => {
     ${errorBox()}
     <button class="btn" data-a="send" ${S.busy ? 'disabled' : ''}>Envoyer le bonbon</button>
   </div>`;
+};
+
+// Débuts de phrases à toucher (pour les timides) et petit rappel bienveillant pendant qu'on écrit
+V.starters = (target) => `<div class="starters" role="group" aria-label="Commencer par…">${STARTERS.map((s, i) =>
+  `<button type="button" class="chip" data-a="starter" data-i="${i}" data-for="${target}">${esc(s.trim())}…</button>`).join('')}</div>`;
+V.kindHint = (target, value) => {
+  const k = kindProblem(value);
+  return `<p class="kind-hint" data-hint="${target}" role="status" ${k ? '' : 'hidden'}>${k ? esc(KIND_HINT[k]) : ''}</p>`;
 };
 
 // Note vocale à joindre (Premium)
@@ -616,40 +831,87 @@ V.tab_sentok = () => `<section class="screen center">
 
 V.tab_inbox = () => {
   const city = cityLabel(S.status);
-  const rec = S.inbox.length ? S.inbox.map((m) => `<article class="card${m.status !== 'reported' ? ' has-menu' : ''}">
-      ${m.status !== 'reported' ? `<button class="card-warn" data-a="cardMenu" data-k="b${esc(m.id)}" aria-label="Bloquer ou signaler ${esc(m.sender_pseudo)}" aria-haspopup="menu" aria-expanded="${S.cardMenu === 'b' + m.id}">${ICON.warn}</button>
+  const card = (m) => {
+    // Signalé ou « pas gentil » : le message disparaît tout de suite
+    if (S.masking && S.masking[m.id]) return `<article class="card masked">
+        <span>Bonbon masqué. Merci de nous l’avoir dit.</span>
+        <div class="row"><span class="small">L’équipe est prévenue dans quelques secondes…</span><button class="link" data-a="unmask" data-id="${esc(m.id)}">Annuler</button></div>
+      </article>`;
+    if (m.status === 'reported') return `<article class="card masked">
+        <span>Bonbon masqué · ${esc(m.sender_pseudo)}</span>
+        <span class="small">Signalé et bloqué. Cette personne ne peut plus t’écrire, quel que soit son pseudo.</span>
+      </article>`;
+    // Pas encore déballé : on le découvre en touchant le bonbon
+    if (m.status === 'open' && !isUnwrapped(m.id)) return `<button class="card wrap-card${S.unwrapping === m.id ? ' opening' : ''}" data-a="unwrap" data-id="${esc(m.id)}" aria-label="Déballer le bonbon de ${esc(m.sender_pseudo)}">
+        <span class="wrap-candy">${candy(['#C2255C', '#1D6B5E', '#F38BAF', '#E2CFCB'][m.id.charCodeAt(0) % 4], 116)}</span>
+        <strong>UN BONBON POUR TOI</strong>
+        <span class="small">De ${esc(m.sender_pseudo)} · ${timeAgo(m.created_at)} · touche pour le déballer</span>
+      </button>`;
+    return `<article class="card has-menu${S.justOpened === m.id ? ' reveal' : ''}">
+      <button class="card-warn" data-a="cardMenu" data-k="b${esc(m.id)}" aria-label="Bloquer ou signaler ${esc(m.sender_pseudo)}" aria-haspopup="menu" aria-expanded="${S.cardMenu === 'b' + m.id}">${ICON.warn}</button>
       ${S.cardMenu === 'b' + m.id ? `<div class="card-menu" role="menu">
         <button role="menuitem" data-a="askBlock" data-id="${esc(m.id)}">Bloquer</button>
         <button role="menuitem" data-a="askReport" data-id="${esc(m.id)}">Signaler</button>
-      </div>` : ''}` : ''}
+      </div>` : ''}
       <span class="context">${m.local ? 'Vous êtes dans la même ville, mais vous ne vous connaissez pas.' : `Un inconnu de passage à ${esc(city)}, venu de ${esc(m.sender_home_city)}.`}</span>
       <p class="quote">« ${esc(m.custom_text || COMPLIMENTS[m.compliment_id] || '')} »</p>
       <span class="small">— ${esc(m.sender_pseudo)} · ${timeAgo(m.created_at)}${m.is_reply ? ' · <strong>en réponse à ton bonbon</strong>' : ''}${m.custom_text ? ' · mot personnalisé' : ''}</span>
-      ${m.has_photo && m.status !== 'reported' ? (!m.photo_seen && m.photo_thumb
+      ${m.has_photo ? (!m.photo_seen && m.photo_thumb
         ? `<button class="photo-blur" data-a="revealPhoto" data-id="${esc(m.id)}" ${S.revealing ? 'disabled' : ''}><img src="${esc(m.photo_thumb)}" alt="" draggable="false"><span>${S.revealing === m.id ? 'Ouverture…' : `👁 Révéler la photo · ${PHOTO_SECONDS} s`}</span></button>`
         : '<span class="small">📷 Photo vue (elle n’existe plus)</span>') : ''}
-      ${m.has_voice && m.status !== 'reported' ? (m.voice_heard
+      ${m.has_voice ? (m.voice_heard
         ? '<span class="small">🎙 Note vocale écoutée (elle n’existe plus)</span>'
         : `<button class="btn small dark" style="align-self:flex-start" data-a="playVoice" data-id="${esc(m.id)}" ${S.playing ? 'disabled' : ''}>${S.playing === m.id ? '🎙 Lecture en cours…' : '🎙 Écouter la note vocale · une seule fois'}</button>`) : ''}
-      ${m.status !== 'reported' ? `<div class="row">
-          ${m.can_reply ? `<button class="btn small" data-a="replyBonbon" data-id="${esc(m.id)}">Renvoyer un bonbon</button>` : ''}
-          ${m.status === 'open' ? `<button class="btn small soft" data-a="thank" data-id="${esc(m.id)}">Dire merci</button>` : ''}
-          <button class="btn small ghost" data-a="storyOpen" data-id="${esc(m.id)}" ${S.storyBusy ? 'disabled' : ''}>📸 En story</button>
-        </div>` : ''}
-      ${m.replied ? '<span class="small" style="color:var(--accent-deep);font-weight:700">Tu lui as renvoyé un bonbon.</span>' : ''}
-      ${m.status === 'thanked' && !m.replied ? '<span class="small" style="color:var(--accent-deep);font-weight:700">Merci envoyé.</span>' : ''}
-      ${m.status === 'reported' ? '<span class="small">Signalé et bloqué. Cette personne ne peut plus t’écrire, quel que soit son pseudo.</span>' : ''}
-    </article>`).join('')
+      ${m.status === 'open' ? `<div class="reacts" role="group" aria-label="Réagir sans écrire">${REACTIONS.map((r, i) =>
+          `<button class="react" data-a="react" data-id="${esc(m.id)}" data-r="${i}"><span class="emo" aria-hidden="true">${r.emo}</span>${esc(r.label)}</button>`).join('')}</div>` : ''}
+      <div class="row">
+        ${m.can_reply ? `<button class="btn small" data-a="replyBonbon" data-id="${esc(m.id)}">Renvoyer un bonbon</button>` : ''}
+        <button class="btn small ghost" data-a="storyOpen" data-id="${esc(m.id)}" ${S.storyBusy ? 'disabled' : ''}>📸 En story</button>
+      </div>
+      ${m.replied ? '<span class="reacted">Tu lui as renvoyé un bonbon.</span>' : ''}
+      ${m.status === 'thanked' ? `<span class="reacted">Tu as répondu : ${esc(reactionText(m.reaction))}</span>` : ''}
+      <button class="link muted not-nice" data-a="notNice" data-id="${esc(m.id)}">🙁 Ce n’était pas gentil</button>
+    </article>`;
+  };
+  const rec = S.inbox.length ? S.inbox.map(card).join('')
     : `<div class="empty">${candy('#E2CFCB', 64)}<span>Pas encore de bonbon. Garde l’app ouverte, on te prévient dès qu’un compliment arrive.</span></div>`;
   const sent = S.sent.length ? `<h3 style="margin:12px 4px 0">Tes bonbons envoyés</h3>` + S.sent.map((m) => `<div class="card" style="gap:6px;padding:14px 16px">
       <span style="font-size:15px">« ${esc(m.custom_text || COMPLIMENTS[m.compliment_id] || '')} » à <strong>${esc(m.recipient_pseudo)}</strong></span>
-      <span class="small">${timeAgo(m.created_at)}${m.has_voice ? (m.voice_heard ? ' · 🎙 note écoutée' : ' · 🎙 note pas encore écoutée') : ''}${m.has_photo ? (m.photo_seen ? ' · 📷 photo vue' : ' · 📷 photo pas encore vue') : ''}${m.thanked ? ' · <strong style="color:var(--accent-deep)">Merci reçu</strong>' : ''}</span>
+      <span class="small">${timeAgo(m.created_at)}${m.has_voice ? (m.voice_heard ? ' · 🎙 note écoutée' : ' · 🎙 note pas encore écoutée') : ''}${m.has_photo ? (m.photo_seen ? ' · 📷 photo vue' : ' · 📷 photo pas encore vue') : ''}${m.thanked ? ` · <strong style="color:var(--mint-deep)">${esc(reactionText(m.reaction))}</strong>` : ''}</span>
     </div>`).join('') : '';
   const convs = S.convs.length ? `<h3 style="margin:0 4px">Vos petits échanges</h3>` + S.convs.map((c) => `<button class="card conv" data-a="openChat" data-sid="${esc(c.session_id)}">
       <span class="row" style="justify-content:space-between;width:100%"><strong style="font-size:18px">${esc(c.pseudo)}</strong>${convUnread(c) ? '<span class="dot-new" aria-label="Nouveau message"></span>' : ''}</span>
       <span class="small">${(c.last_phrase === null || c.last_phrase === undefined) && !c.last_body ? 'Vous vous êtes envoyé un bonbon : dites-vous un petit mot !' : (c.last_from_me ? 'Toi : ' : '') + esc(c.last_body || PHRASES[c.last_phrase] || '')}</span>
     </button>`).join('') : '';
-  return `<div class="scroll">${convs}<h2 style="margin:${S.convs.length ? '12px' : '0'} 4px 0">Tes petits bonbons</h2>${rec}${sent}</div>`;
+  const n = JAR.list().length;
+  const jar = `<button class="card jar-entry" data-a="tab" data-tab="jar">${jarSvg(n, 44)}
+      <span class="jar-txt"><strong>Mon bocal à bonbons</strong><span class="small">${n ? `${n} compliment${n > 1 ? 's' : ''} gardé${n > 1 ? 's' : ''} pour les jours gris` : 'Les compliments que tu reçois s’y rangent tout seuls.'}</span></span>
+      <span aria-hidden="true" style="font-family:var(--display);font-size:12px">›</span></button>`;
+  const pause = pausedUntil() ? V.pauseBanner() : '<button class="link muted pause-link" data-a="togglePause">🌙 Besoin de calme ? Pause jusqu’à demain matin</button>';
+  return `<div class="scroll">${jar}${pause}${convs}<h2 style="margin:${S.convs.length ? '12px' : '0'} 4px 0">Tes petits bonbons</h2>${rec}${sent}</div>`;
+};
+
+// ---------- Mon bocal à bonbons ---------------------------------------
+V.tab_jar = () => {
+  const l = JAR.list();
+  const pick = S.jarPick ? l.find((x) => x.id === S.jarPick) : null;
+  const meta = (x) => [x.from ? `— ${esc(x.from)}` : '', esc(x.city || ''), x.at ? esc(fmtDate(x.at)) : ''].filter(Boolean).join(' · ');
+  return `<div class="scroll">
+    <button class="link muted" data-a="tab" data-tab="inbox" style="display:flex;align-items:center;gap:6px;align-self:flex-start">${ICON.back}Ma box</button>
+    <div class="jar-hero">
+      ${jarSvg(l.length, 132)}
+      <span class="count">${l.length} bonbon${l.length > 1 ? 's' : ''}</span>
+      <p class="sub" style="max-width:330px">Tous les compliments que tu as reçus, à relire les jours gris. Ils restent sur ce téléphone, même quand ton identité du jour s’efface.</p>
+      ${l.length ? '<button class="btn" data-a="jarPick">Piocher un bonbon</button>' : ''}
+    </div>
+    ${pick ? `<article class="card jar-pick reveal" aria-live="polite"><p class="quote">« ${esc(pick.text)} »</p><span class="small">${meta(pick)}</span></article>` : ''}
+    ${l.length ? l.map((x) => `<article class="card jar-item">
+        <p class="quote">« ${esc(x.text)} »</p>
+        <div class="row"><span class="small">${meta(x)}</span><button class="link muted" style="min-height:32px" data-a="jarRemove" data-id="${esc(x.id)}" aria-label="Retirer du bocal">Retirer</button></div>
+      </article>`).join('')
+      : `<div class="empty"><span>Ton bocal est encore vide. Chaque bonbon que tu déballes viendra s’y ranger.</span></div>`}
+    ${l.length ? '<button class="link muted" style="align-self:center" data-a="jarClear">Vider mon bocal</button>' : ''}
+  </div>`;
 };
 
 V.tab_chat = () => {
@@ -677,10 +939,12 @@ V.tab_chat = () => {
       ${PHRASES.map((ph, i) => (i < PHRASES_FREE || isPremium()
         ? `<button type="button" class="chip" data-a="sendPhrase" data-i="${i}">${esc(ph)}</button>`
         : `<button type="button" class="chip locked" data-a="openPremium">${ICON.lockSmall}${esc(ph)}</button>`)).join('')}
+      <div style="width:100%">${V.starters('chatmsg')}</div>
       <form class="chat-input" data-f="chatText" novalidate>
-        <input name="chatmsg" maxlength="200" autocomplete="off" placeholder="Écris un petit message…" aria-label="Ton message">
+        <input id="chatmsg" name="chatmsg" maxlength="200" autocomplete="off" placeholder="Écris un petit message…" aria-label="Ton message">
         <button class="btn small" type="submit" ${S.busy ? 'disabled' : ''}>Envoyer</button>
       </form>
+      <div style="width:100%">${V.kindHint('chatmsg', '')}</div>
       <span class="small" style="width:100%">${isPremium() ? 'Bienveillant, sans numéro, réseau social ni lien.' : 'Gratuit avec 2 personnes de ta ville. Bienveillant, sans numéro, réseau social ni lien.'}</span>
     </div>
   </div>`;
@@ -702,6 +966,7 @@ V.meProfile = () => {
   const bio = S.editBio ? `<form class="stack" style="gap:10px" data-f="bio">
         <div class="field"><label for="bio">Quelques mots sur toi</label>
           <textarea id="bio" name="bio" rows="${isPremium() ? 3 : 2}" maxlength="${isPremium() ? 160 : 80}" placeholder="Ex. : je cherche le meilleur croissant du quartier">${esc(s.bio || '')}</textarea>
+          ${V.kindHint('bio', s.bio)}
           <span class="small">${isPremium() ? '160' : '80'} caractères. Pas de numéro, de réseau social ni de lien.${isPremium() ? '' : ' <button type="button" class="link" style="font-size:inherit;padding:0;min-height:0" data-a="openPremium">160 avec Premium</button>'}</span></div>
         ${errorBox()}
         <div class="row"><button class="btn small" type="submit" ${S.busy ? 'disabled' : ''}>Enregistrer</button><button class="link muted" type="button" data-a="cancelBio">Annuler</button></div>
@@ -757,16 +1022,21 @@ V.meSettings = () => {
     </div>
     <div class="card" style="padding:6px 18px;gap:0">
       <span class="small" style="padding-top:12px">Ce que je reçois</span>
+      <button class="toggle" role="switch" aria-checked="${!!pausedUntil()}" data-a="togglePause"><span class="txt"><strong>Pause bonbons 🌙</strong><span>${pausedUntil()
+        ? `En pause jusqu’à ${pauseWhen(pausedUntil())}. Personne ne peut t’en envoyer.`
+        : 'Rien n’arrive jusqu’à demain matin, et tu disparais de « Découvrir ». Ça se rallume tout seul.'}</span></span><span class="track"></span></button>
       ${tg('receive_on', 'Recevoir des bonbons', 'Si c’est coupé, tu n’apparais plus dans « Découvrir ».')}
       ${tg('accept_custom', 'Recevoir des mots personnalisés', 'Écrits par des membres Premium, vérifiés avant d’arriver.')}
       ${tg('accept_voice', 'Recevoir des notes vocales', '8 s (15 s pour les membres Premium), écoutables une seule fois.')}
       ${tg('accept_photo', 'Recevoir des photos floues', 'Envoyées par des membres Premium, révélées 10 secondes si tu le choisis.')}
     </div>
     <div class="card" style="padding:6px 18px;gap:0">
-      <span class="small" style="padding-top:12px">Sons</span>
+      <span class="small" style="padding-top:12px">Sons et vibrations</span>
       <button class="toggle" role="switch" aria-checked="${SOUND.on}" data-a="toggleSound" data-key="on"><span class="txt"><strong>Sons de l’app</strong><span>Ouverture et bonbon reçu.</span></span><span class="track"></span></button>
       <button class="toggle" role="switch" aria-checked="${SOUND.on && SOUND.clicks}" data-a="toggleSound" data-key="clicks" ${SOUND.on ? '' : 'disabled'}><span class="txt"><strong>Sons des clics</strong><span>Un petit bruit à chaque appui.</span></span><span class="track"></span></button>
+      ${HAPTIC.ok ? `<button class="toggle" role="switch" aria-checked="${HAPTIC.on}" data-a="toggleHaptic"><span class="txt"><strong>Vibrations</strong><span>Un petit frisson quand un bonbon arrive ou que tu le déballes.</span></span><span class="track"></span></button>` : ''}
     </div>
+    ${V.installCard(false)}
     ${isPremium() ? V.premiumCard() : `<div class="premium${premiumReady() ? '' : ' soon'}">
       <span class="kicker">PREMIUM · ${premiumReady() ? PREMIUM_PRICE : 'BIENTÔT'}</span>
       <h3>Tes propres mots, des bonbons animés, plus de bonbons chaque jour</h3>
@@ -1040,17 +1310,30 @@ async function loadData() {
     if (isPremium() && !S.premiumCode) await loadPremiumCode();
     if (S.view === 'main') render();
   } catch (e) { toast(errMsg(e)); }
+  loadPulse();
+}
+let pulseAt = 0;
+function loadPulse() {
+  if (Date.now() - pulseAt < 60000) return;   // au plus une fois par minute
+  pulseAt = Date.now();
+  rpc('city_pulse').then((p) => {
+    const v = p && typeof p.week === 'number' ? p.week : null;
+    if (v !== S.pulse) { S.pulse = v; if (S.view === 'main' && S.tab === 'discover') render(); }
+  }).catch(() => { S.pulse = null; });
 }
 
 function noteInbox(list) {
   const ids = new Set(list.map((m) => m.id));
+  // Première ouverture de cette version : les bonbons déjà là sont considérés comme déballés
+  if (unwrapped === null) { unwrapped = new Set(list.map((m) => m.id)); saveUnwrapped(); }
   if (S.seenInbox) {
     const fresh = list.filter((m) => !S.seenInbox.has(m.id) && m.status === 'open').length;
-    if (fresh) SOUND.play('bonbon');
+    if (fresh) { SOUND.play('bonbon'); buzz([40, 60, 40]); }
     if (fresh && S.tab !== 'inbox') S.banner += fresh;
   }
   S.seenInbox = ids;
   S.inbox = list;
+  jarSync(list);
 }
 
 // ---------- Notes vocales (Premium) ------------------------------------
@@ -1369,6 +1652,7 @@ const FX_COLORS = {
   1: ['#FF9EC4', '#F07DAA', '#B0245A', '#FFE0EC'],
   2: ['#FFC93C', '#F5A623', '#FF9EC4', '#E8B400'],
   3: ['#FF9EC4', '#C6F1DF', '#FFF1A8', '#ECE4FF', '#FFE3CC', '#9EDCC3'],
+  4: ['#FF9EC4', '#FFE07A', '#9EDCC3', '#B9A6F0'],   // petits éclats au déballage
 };
 const fxSvg = (shape, color, size) => {
   const g = FX_SHAPES[shape], w = g[0].length, h = g.length;
@@ -1378,19 +1662,20 @@ const fxSvg = (shape, color, size) => {
 };
 function playEffect(effect) {
   if (!effect || !FX_COLORS[effect] || !document.body.animate) return;
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduce = reducedMotion();
+  if (effect === 4 && reduce) return;
   const layer = document.createElement('div');
   layer.className = 'fx-layer';
   document.body.appendChild(layer);
   const W = window.innerWidth, H = window.innerHeight;
   const shape = effect === 1 ? 'heart' : effect === 2 ? 'star' : 'dot';
   const colors = FX_COLORS[effect];
-  const n = reduce ? 1 : (effect === 3 ? 46 : 26);
+  const n = reduce ? 1 : (effect === 3 ? 46 : effect === 4 ? 16 : 26);
   let done = 0;
   for (let i = 0; i < n; i++) {
     const el = document.createElement('div');
     el.className = 'fx-bit';
-    const size = reduce ? 64 : (effect === 3 ? 8 + Math.random() * 6 : 16 + Math.random() * 18);
+    const size = reduce ? 64 : (effect >= 3 ? 8 + Math.random() * 6 : 16 + Math.random() * 18);
     el.innerHTML = fxSvg(shape, colors[i % colors.length], size);
     layer.appendChild(el);
     let frames, opts;
@@ -1408,7 +1693,7 @@ function playEffect(effect) {
       opts = { duration: 1800 + Math.random() * 1200, delay: Math.random() * 400, easing: 'cubic-bezier(.25,.6,.4,1)' };
     } else {
       // cœurs et étoiles : jaillissent du centre, puis s'envolent ou retombent
-      const a = Math.random() * Math.PI * 2, d = 90 + Math.random() * Math.min(W, H) * 0.35;
+      const a = Math.random() * Math.PI * 2, d = (effect === 4 ? 50 : 90) + Math.random() * Math.min(W, H) * (effect === 4 ? 0.22 : 0.35);
       const dx = Math.cos(a) * d, dy = Math.sin(a) * d * 0.8;
       const end = effect === 1 ? -H * 0.35 - Math.random() * 120 : 140 + Math.random() * 120;
       el.style.left = `${W / 2 - size / 2}px`; el.style.top = `${H * 0.45}px`;
@@ -1423,10 +1708,15 @@ function playEffect(effect) {
   setTimeout(() => layer.remove(), 5000); // filet de sécurité
 }
 // Joue l'animation d'un bonbon reçu la première fois qu'on ouvre « Ma box »
+function markFxPlayed(id) {
+  let played = [];
+  try { played = JSON.parse(localStorage.getItem('pb_fx_played') || '[]'); } catch (_) {}
+  try { localStorage.setItem('pb_fx_played', JSON.stringify(played.concat(id).slice(-200))); } catch (_) {}
+}
 function playNewEffects() {
   let played = [];
   try { played = JSON.parse(localStorage.getItem('pb_fx_played') || '[]'); } catch (_) {}
-  const todo = (S.inbox || []).filter((m) => m.effect && m.status !== 'reported' && !played.includes(m.id));
+  const todo = (S.inbox || []).filter((m) => m.effect && m.status !== 'reported' && isUnwrapped(m.id) && !played.includes(m.id));
   if (!todo.length) return;
   played = played.concat(todo.map((m) => m.id)).slice(-200);
   try { localStorage.setItem('pb_fx_played', JSON.stringify(played)); } catch (_) {}
@@ -1477,6 +1767,21 @@ async function poll() {
 setInterval(poll, 20000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
+async function sendNotNice(id) {
+  if (!S.masking || !S.masking[id]) return;
+  clearTimeout(S.masking[id]); delete S.masking[id];
+  const m = S.inbox.find((x) => x.id === id);
+  if (m) m.status = 'reported';
+  JAR.remove(id);
+  render();
+  try {
+    await rpc('report', { p_reason: 'Ce n’était pas gentil', p_bonbon_id: id, p_session_id: null });
+    toast('Merci. Cette personne ne pourra plus t’écrire.');
+    loadData();
+  } catch (e) { toast(errMsg(e)); }
+}
+function flushNotNice() { if (S.masking) Object.keys(S.masking).forEach((id) => sendNotNice(id)); }
+
 // Qui bloquer ou signaler : une personne d'« Autour de toi » (d.i) ou l'auteur d'un bonbon reçu (d.id)
 function reportTarget(d) {
   if (d.chat && S.chat) return { sessionId: S.chat.session_id, pseudo: S.chat.pseudo, fromChat: true };
@@ -1514,10 +1819,12 @@ const A = {
   },
   tab(d) {
     if (d.tab === 'me') S.meSettings = false;   // « Moi » ouvre toujours sur le profil
+    if (d.tab === 'jar') S.jarPick = null;
     S.tab = d.tab; S.error = '';
     if (S.view === 'identity') S.view = 'main';
-    if (d.tab === 'inbox') S.banner = 0;
+    if (d.tab === 'inbox' || d.tab === 'jar') S.banner = 0;
     render();
+    window.scrollTo(0, 0);
     if (d.tab === 'discover' || d.tab === 'inbox') loadData();
   },
   refresh() { S.cardMenu = null; S.peopleLoaded = false; render(); loadData(); },
@@ -1623,13 +1930,90 @@ const A = {
     } catch (e) { S.error = errMsg(e); }
     S.busy = false; render();
   },
-  async thank(d) {
+  async react(d) {
+    const r = +d.r || 0;
+    const m = S.inbox.find((x) => x.id === d.id); if (!m || m.status !== 'open') return;
+    m.status = 'thanked'; m.reaction = r; buzz(15); render();
     try {
-      await rpc('thank_bonbon', { p_id: d.id });
-      const m = S.inbox.find((x) => x.id === d.id); if (m) m.status = 'thanked';
-      render(); toast('Un « merci » est parti. Pas besoin d’en dire plus.');
-    } catch (e) { toast(errMsg(e)); }
+      try { await rpc('thank_bonbon', { p_id: d.id, p_reaction: r }); }
+      catch (e) {   // base pas encore mise à jour : simple « merci »
+        if (!/thank_bonbon|function|schema cache/i.test((e && e.message) || '')) throw e;
+        await rpc('thank_bonbon', { p_id: d.id });
+      }
+      toast(`${reactionText(r)} : c’est parti. Pas besoin d’en dire plus.`);
+    } catch (e) { m.status = 'open'; render(); toast(errMsg(e)); }
   },
+  // Déballer un bonbon : il tremble, s'ouvre, et le compliment apparaît
+  unwrap(d, el) {
+    const m = S.inbox.find((x) => x.id === d.id);
+    if (!m || S.unwrapping) return;
+    S.unwrapping = m.id;
+    if (el) el.classList.add('opening');
+    buzz([12, 40, 12]);
+    setTimeout(() => {
+      markUnwrapped(m.id); S.unwrapping = null; S.justOpened = m.id;
+      jarSync(S.inbox);
+      render();
+      buzz(30);
+      if (m.effect) { markFxPlayed(m.id); playEffect(m.effect); } else playEffect(4);
+      setTimeout(() => { if (S.justOpened === m.id) S.justOpened = null; }, 700);
+    }, reducedMotion() ? 120 : 560);
+  },
+  // « Ce n'était pas gentil » : masqué tout de suite, signalé après quelques secondes (annulable)
+  notNice(d) {
+    const m = S.inbox.find((x) => x.id === d.id); if (!m) return;
+    S.masking = S.masking || {};
+    if (S.masking[m.id]) return;
+    S.masking[m.id] = setTimeout(() => sendNotNice(m.id), 5000);
+    S.cardMenu = null; buzz(10); render();
+  },
+  unmask(d) {
+    if (!S.masking || !S.masking[d.id]) return;
+    clearTimeout(S.masking[d.id]); delete S.masking[d.id];
+    render(); toast('D’accord, le bonbon est de retour.');
+  },
+  async togglePause() {
+    const on = !pausedUntil();
+    try {
+      S.status = await rpc('set_pause', { p_until: on ? nextMorning().toISOString() : null });
+      toast(on ? `Pause activée 🌙 Personne ne pourra t’envoyer de bonbon avant ${pauseWhen(nextMorning())}.` : 'Te revoilà 🍬');
+      if (on) buzz(20);
+    } catch (e) { toast(errMsg(e)); }
+    render();
+  },
+  toggleHaptic() { HAPTIC.on = !HAPTIC.on; HAPTIC.save(); if (HAPTIC.on) buzz(30); render(); },
+  dailyDone() {
+    try { localStorage.setItem('pb_daily_done', todayKey()); } catch (_) {}
+    buzz([20, 40, 20]); render(); playEffect(4);
+  },
+  starter(d) {
+    const el = document.getElementById(d.for); if (!el) return;
+    const st = STARTERS[+d.i] || '';
+    const v = el.value.trim();
+    el.value = !v || STARTERS.some((x) => x.trim() === v) ? st : `${v} ${st}`;
+    if (d.for === 'custom') S.custom = el.value;
+    el.focus();
+    try { el.setSelectionRange(el.value.length, el.value.length); } catch (_) {}
+    updateKindHint(el);
+  },
+  jarPick() {
+    const l = JAR.list(); if (!l.length) return;
+    let next = l[Math.floor(Math.random() * l.length)];
+    if (l.length > 1) while (next.id === S.jarPick) next = l[Math.floor(Math.random() * l.length)];
+    S.jarPick = next.id; buzz(12); render(); window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  },
+  jarRemove(d) { JAR.remove(d.id); if (S.jarPick === d.id) S.jarPick = null; render(); toast('Retiré du bocal.'); },
+  jarClear() {
+    if (!confirm('Vider ton bocal ? Les compliments seront effacés de ce téléphone.')) return;
+    JAR.save([]); S.jarPick = null; render();
+  },
+  async install() {
+    if (!installEvt) return;
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch (_) {}
+    installEvt = null; render();
+  },
+  hideInstall() { S.hideInstall = true; try { localStorage.setItem('pb_hide_install', '1'); } catch (_) {} render(); },
   reportBonbon(d) { const m = S.inbox.find((x) => x.id === d.id); S.report = { bonbonId: d.id, pseudo: m ? m.sender_pseudo : 'Cette personne' }; render(); },
   reportSession(d) { const p = S.people[+d.i]; S.report = { sessionId: p.session_id, pseudo: p.pseudo }; render(); },
   cardMenu(d) { S.cardMenu = S.cardMenu === d.k ? null : d.k; render(); },
@@ -1703,6 +2087,8 @@ const A = {
   async deleteAccount() {
     if (!confirm(isAnon() ? 'Effacer définitivement toutes tes données (identité, bonbons, réglages) ?' : 'Supprimer définitivement ton compte et toutes tes données ?')) return;
     try { await rpc('delete_account'); } catch (e) { return toast(errMsg(e)); }
+    try { ['pb_jar', 'pb_unwrapped', 'pb_fx_played', 'pb_daily_done'].forEach((k) => localStorage.removeItem(k)); } catch (_) {}
+    unwrapped = new Set();
     await sb.auth.signOut();
     S.user = null; S.status = null; S.view = 'welcome'; render();
     toast('Toutes tes données ont été effacées.');
@@ -1839,6 +2225,7 @@ const F = {
       S.status = await rpc('start_session', { p_pseudo: f.pseudo, p_moods: f.moods.filter((m) => isPremium() || MOODS.includes(m)).slice(0, isPremium() ? 2 : 1), p_bio: '', p_current_city: f.city, p_home_city: '' });
       try { localStorage.setItem('pb_city', f.city); } catch (_) {}
       S.busy = false; S.view = 'main'; S.tab = 'discover'; S.peopleLoaded = false; S.seenInbox = null;
+      S.pulse = null; pulseAt = 0;   // nouvelle ville : nouveau compteur
       render(); loadData();
     } catch (e) { S.busy = false; S.error = errMsg(e); render(); }
   },
@@ -1892,7 +2279,14 @@ document.addEventListener('change', (e) => {
   if (e.target.id === 'photo-input' && e.target.files && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; handlePhoto(f); }
   if (e.target.id === 'pphoto-input' && e.target.files && e.target.files[0]) { const f = e.target.files[0]; e.target.value = ''; handleProfilePhoto(f); }
 });
+function updateKindHint(el) {
+  const hint = document.querySelector(`[data-hint="${el.id}"]`);
+  if (!hint) return;
+  const k = kindProblem(el.value);
+  hint.hidden = !k; hint.textContent = k ? KIND_HINT[k] : '';
+}
 document.addEventListener('input', (e) => {
+  if (e.target.id) updateKindHint(e.target);
   if (e.target.id === 'custom') S.custom = e.target.value;
   const k = e.target.dataset && e.target.dataset.bind;
   if (k) S.form[k] = e.target.value;
@@ -1905,7 +2299,8 @@ const veil = (on) => document.body.classList.toggle('veiled', on);
 document.addEventListener('visibilitychange', () => veil(document.hidden));
 window.addEventListener('blur', () => veil(true));
 window.addEventListener('focus', () => veil(false));
-window.addEventListener('pagehide', () => veil(true));
+window.addEventListener('pagehide', () => { veil(true); flushNotNice(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushNotNice(); });
 window.addEventListener('pageshow', () => veil(false));
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('.card, .quote, .bio, .photo-view')) e.preventDefault(); });
 document.addEventListener('copy', (e) => { if (window.getSelection && e.target.closest && e.target.closest('.card')) e.preventDefault(); });
@@ -1917,7 +2312,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- Démarrage --------------------------------------------------
 async function start() {
-  try { S.form.city = localStorage.getItem('pb_city') || ''; S.hideEvents = localStorage.getItem('pb_hide_events') === '1'; } catch (_) {}
+  try { S.form.city = localStorage.getItem('pb_city') || ''; S.hideEvents = localStorage.getItem('pb_hide_events') === '1'; S.hideInstall = localStorage.getItem('pb_hide_install') === '1'; } catch (_) {}
   if (!CONFIGURED) return route();
   sb.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') { S.user = session && session.user; S.view = 'newpass'; render(); return; }
@@ -1935,7 +2330,8 @@ async function start() {
   const qs = new URLSearchParams(location.search);
   if (qs.has('paid') && S.view === 'paywall') A.checkPaid();
   if (qs.get('premium') === '1') A.checkPremium();
-  if (qs.has('premium') || qs.has('paid')) history.replaceState(null, '', location.pathname);
+  if (S.view === 'main' && ['inbox', 'jar'].includes(qs.get('tab'))) A.tab({ tab: qs.get('tab') });
+  if (qs.has('premium') || qs.has('paid') || qs.has('tab')) history.replaceState(null, '', location.pathname);
 }
 start();
 

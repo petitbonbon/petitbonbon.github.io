@@ -33,6 +33,7 @@
 <li><strong>Abonnement</strong> : identifiants client et d'abonnement Stripe, statut, date de renouvellement. Finalité : gérer l'accès Premium (exécution du contrat). Les factures sont conservées par Stripe selon ses obligations comptables.</li>
 <li><strong>Paiement</strong> : traité directement par Stripe (et PayPal si tu choisis ce moyen). Petit Bonbon ne reçoit que la confirmation du paiement, jamais les données de carte.</li>
 <li><strong>Photos</strong> (Premium) : la photo, réduite et débarrassée de ses métadonnées (position GPS, modèle de téléphone) sur le téléphone de l'expéditeur, stockée dans un espace privé chez notre hébergeur, avec un aperçu flou de 16 pixels de large. Seul le destinataire peut la révéler, une seule fois, pendant 10 secondes ; le fichier est effacé quelques minutes après, au plus tard 24 heures après l'envoi, ou dès qu'il est signalé. La vérification anti-nudité se fait sur le téléphone : la photo n'est envoyée à aucun autre service.</li>
+<li><strong>Réactions et pause</strong> : la réaction choisie en réponse à un bonbon (💌, 🍬, 🍭 ou 🍫), visible par son expéditeur ; l'heure de fin d'une « pause bonbons ». Conservées avec le bonbon (30 jours) ou jusqu'à la fin de la pause.</li>
 <li><strong>Notes vocales</strong> : l'enregistrement audio de 8 secondes au plus (15 secondes avec Premium), stocké dans un espace privé chez notre hébergeur. Seul le destinataire peut l'écouter, une seule fois ; le fichier est effacé quelques minutes après l'écoute, au plus tard 24 heures après l'envoi s'il n'a pas été écouté, ou dès qu'il est signalé.</li>
 <li><strong>Mots personnalisés</strong> : le texte écrit par un membre Premium, visible par l'expéditeur et le destinataire pendant 30 jours ; conservé jusqu'à la suppression du compte, ou un an après un signalement.</li>
 </ul>
@@ -51,7 +52,7 @@
 <p>Tu disposes d'un droit d'accès, de rectification, d'effacement, d'opposition, de limitation et de portabilité. Tu peux supprimer ton compte et toutes tes données à tout moment depuis l'onglet « Moi ». Pour toute autre demande : <a class="pb-contact" href="#"></a>. Tu peux aussi introduire une réclamation auprès de la CNIL (cnil.fr).</p>
 
 <h2>Stockage local</h2>
-<p>L'application conserve sur ton appareil ta session de connexion et la dernière ville saisie, pour t'éviter de les retaper. Aucun cookie publicitaire ni outil de mesure d'audience n'est utilisé.</p>
+<p>L'application conserve sur ton appareil ta session de connexion et la dernière ville saisie, pour t'éviter de les retaper. Elle y garde aussi ton <strong>bocal à bonbons</strong> (le texte des compliments reçus, le pseudo de l'expéditeur, la ville et la date) et tes réglages (sons, vibrations, bonbon du jour) : ces informations ne quittent jamais ton téléphone. Tu peux retirer un compliment ou vider le bocal à tout moment ; « Effacer toutes mes données » les supprime aussi. Aucun cookie publicitaire ni outil de mesure d'audience n'est utilisé.</p>
 </article>
 <script>
 document.querySelectorAll('.pb-contact').forEach(function (a) {

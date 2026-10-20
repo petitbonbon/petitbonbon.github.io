@@ -94,6 +94,30 @@ select count(*) from profiles where sub_status in ('active', 'trialing');
 select recovery_code, sub_status, sub_period_end from profiles where stripe_customer_id = 'cus_XXXXXXXX';
 ```
 
+## Nouveautés bien-être (20 oct. 2026)
+
+**À faire une fois :** Supabase › **SQL Editor** › colle tout `supabase/schema.sql` › **Run** (sans risque : il ne recrée que ce qui manque). Tant que ce n'est pas fait, l'app reste utilisable, mais les réactions emoji redeviennent un simple « merci », et la pause et le compteur de ville ne marchent pas.
+
+- **Mode sombre** automatique (suit le réglage du téléphone), tons prune et lilas, jamais de noir pur.
+- **Bonbons emballés** : un bonbon reçu arrive emballé dans « Ma box » ; on le touche, il tremble, s'ouvre, et le compliment apparaît avec une pluie de petits éclats. Rebonds doux sur les boutons. Tout se calme si le téléphone demande moins d'animations.
+- **Vibrations** (Android) à l'arrivée et au déballage d'un bonbon, coupables dans Paramètres.
+- **Installer l'app** : bouton « Installer » (Android/Chrome) ou mode d'emploi iPhone ; raccourcis « Ma box » et « Bocal » sur l'icône.
+- **Bocal à bonbons** : chaque compliment déballé s'y range, sur le téléphone uniquement. Bouton « Piocher un bonbon » pour les jours gris.
+- **Bonbon du jour** : une suggestion douce par jour (60 phrases, liste `DAILY` dans `app.js`).
+- **Compliments guidés** : débuts de phrases à toucher pour les mots personnalisés et la conversation libre (liste `STARTERS`).
+- **Réactions sans texte** : 💌 Merci, 🍬 Touché·e, 🍭 J'ai souri, 🍫 Ça m'a fait du bien. L'expéditeur voit la réaction.
+- **Compteur de ville** : « 128 bonbons échangés à Orléans cette semaine » (un simple total).
+- **« Ce n'était pas gentil »** : le bonbon est masqué tout de suite ; 5 secondes pour annuler, puis signalement + blocage (comme « Signaler »).
+- **Filtre renforcé** : moqueries et méchancetés (« moche », « ta gueule », « personne ne t'aime »…) refusées par la base, avec un rappel doux qui s'affiche dès la saisie.
+- **Pause bonbons 🌙** : plus rien n'arrive jusqu'à demain 7 h, on disparaît de « Découvrir » ; ça se rallume tout seul.
+
+```sql
+-- Réactions reçues cette semaine
+select reaction, count(*) from bonbons where status = 'thanked' and created_at > now() - interval '7 days' group by 1;
+-- Signalements « pas gentil »
+select created_at, pseudo_seen from reports where reason = 'Ce n’était pas gentil' and not handled order by created_at desc;
+```
+
 ## Pilotage au quotidien (Supabase › SQL Editor)
 
 ```sql

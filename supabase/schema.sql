@@ -150,6 +150,14 @@ alter table public.bonbons add column if not exists photo_gone      boolean not 
 create index if not exists bonbons_photo_idx on public.bonbons (photo_gone) where photo_path is not null;
 alter table public.profiles add column if not exists accept_photo boolean not null default true; -- recevoir des photos
 
+-- ---------- Bien-être (oct. 2026) --------------------------------------
+-- Réaction sans texte à un bonbon reçu : 0 = 💌 Merci, 1 = 🍬 Touché·e, 2 = 🍭 J'ai souri, 3 = 🍫 Ça m'a fait du bien
+alter table public.bonbons add column if not exists reaction int not null default 0 check (reaction between 0 and 3);
+-- Pause bonbons : on ne reçoit plus rien jusqu'à cette date (au plus ~24 h), on disparaît de « Découvrir »
+alter table public.profiles add column if not exists paused_until timestamptz;
+-- Compteur de ville (bonbons échangés sur 7 jours)
+create index if not exists bonbons_time_idx on public.bonbons (created_at);
+
 -- Mini-conversation : uniquement des phrases choisies dans une liste (phrase_id)
 create table if not exists public.messages (
   id            uuid primary key default gen_random_uuid(),
@@ -249,6 +257,8 @@ returns boolean language sql immutable as $$
     -- autres applis pour emmener la conversation ailleurs
     or x ~ '\m(insta|instagram|snap|snapchat|whatsapp|watsap|wa\.me|telegram|tiktok|facebook|fb|discord|onlyfans|mym|tinder|kik|wechat|messenger)\M'
     -- injures, contenus sexuels, haine (pas pour les villes : « Bitche » existe !)
+    -- moqueries et méchancetés (un compliment ne doit jamais blesser)
+    or check_words and x ~ '\m(moche|moches|laid|laide|laids|laides|laideron\w*|grosse vache|gros porc|debile\w*|idiot|idiote|idiots|idiotes|cretin\w*|abruti\w*|gogol\w*|mongol\w*|attarde\w*|boloss|bouffon\w*|pouffiasse\w*|petasse\w*|ta gueule|tg|va mourir|va crever|suicide[ -]toi|tue[ -]toi|kys|kill yourself|ugly|loser|stupid|t.es nul\w*|tu es nul\w*|personne ne t.aime)\M'
     or check_words and x ~ '\m(con|connard|connasse|conne|salope|salop|pute|putain|pd|pede|encul\w*|ntm|fdp|batard|nique\w*|bite|chatte|couille\w*|sexe|sexy|nude\w*|nudes|porn\w*|cul|baise\w*|suce|suces|sucer|suceu\w*|branle\w*|bander|nazi\w*|hitler|negre\w*|negro|bougnoul\w*|youpin\w*|gouine|tapette|tarlouze|viol|viols|violer|violeur\w*|fuck\w*|shit|bitch\w*|dick|pussy|cock|slut|whore|nigg\w*|fag|fags|faggot\w*|cunt)\M'
   from n
 $$;
@@ -340,6 +350,7 @@ begin
     'accept_photo',   p.accept_photo,
     'profile_photo',  p.profile_photo,
     'profile_voice',  p.profile_voice is not null,
+    'paused_until',   case when p.paused_until > now() then p.paused_until end,
     'premium',        coalesce(p.sub_status in ('active', 'trialing'), false),
     'sub_status',     p.sub_status,
     'sub_period_end', p.sub_period_end,
@@ -437,6 +448,7 @@ begin
     and public.norm_city(s.current_city) = public.norm_city(me.current_city)
     and not p.banned
     and p.receive_on
+    and (p.paused_until is null or p.paused_until <= now())
     and (not p.same_city_only or public.norm_city(me.home_city) = public.norm_city(s.current_city))
     and not public.blocked_between(uid, s.user_id)
   order by s.created_at desc
@@ -467,6 +479,7 @@ begin
      or (tp.same_city_only and public.norm_city(me.home_city) <> public.norm_city(them.current_city))
      or public.blocked_between(uid, them.user_id)
   then raise exception 'GONE'; end if;
+  if tp.paused_until > now() then raise exception 'PAUSED'; end if;
 
   lim := public.daily_limit_for(uid);
   if (select count(*) from public.bonbons
@@ -502,7 +515,7 @@ returns table (id uuid, sender_pseudo text, sender_home_city text, local boolean
                compliment_id int, status text, created_at timestamptz,
                is_reply boolean, replied boolean, can_reply boolean, custom_text text, effect int,
                has_voice boolean, voice_heard boolean,
-               has_photo boolean, photo_seen boolean, photo_thumb text)
+               has_photo boolean, photo_seen boolean, photo_thumb text, reaction int)
 language plpgsql security definer set search_path = public as $$
 declare uid uuid := auth.uid();
 begin
@@ -524,7 +537,8 @@ begin
          b.photo_gone or b.photo_opened_at is not null or b.created_at < now() - interval '24 hours',
          case when b.photo_path is not null and not b.photo_gone and b.photo_opened_at is null
                    and b.status <> 'reported' and b.created_at > now() - interval '24 hours'
-              then b.photo_thumb end
+              then b.photo_thumb end,
+         b.reaction
   from public.bonbons b
   where b.recipient_id = uid
     and b.created_at > now() - interval '30 days'
@@ -555,6 +569,7 @@ begin
   then raise exception 'GONE'; end if;
   select * into tp from public.profiles where id = orig.sender_id;
   if tp.banned or not tp.receive_on or public.blocked_between(uid, orig.sender_id) then raise exception 'GONE'; end if;
+  if tp.paused_until > now() then raise exception 'PAUSED'; end if;
   if exists (select 1 from public.bonbons where reply_to = orig.id) then raise exception 'ALREADY'; end if;
   lim := public.daily_limit_for(uid);
   if (select count(*) from public.bonbons
@@ -688,22 +703,50 @@ end $$;
 drop function if exists public.sent();
 create or replace function public.sent()
 returns table (id uuid, recipient_pseudo text, compliment_id int, thanked boolean, created_at timestamptz, custom_text text,
-               has_voice boolean, voice_heard boolean, has_photo boolean, photo_seen boolean)
+               has_voice boolean, voice_heard boolean, has_photo boolean, photo_seen boolean, reaction int)
 language sql security definer set search_path = public as $$
   select b.id, b.recipient_pseudo, b.compliment_id, b.status = 'thanked', b.created_at, b.custom_text,
          b.voice_path is not null, b.voice_opened_at is not null,
-         b.photo_path is not null, b.photo_opened_at is not null
+         b.photo_path is not null, b.photo_opened_at is not null, b.reaction
   from public.bonbons b
   where b.sender_id = auth.uid() and b.created_at > now() - interval '30 days'
   order by b.created_at desc
   limit 100
 $$;
 
-create or replace function public.thank_bonbon(p_id uuid)
+-- Dire merci, ou réagir d'un emoji-bonbon (0 à 3), sans avoir à écrire
+drop function if exists public.thank_bonbon(uuid);
+create or replace function public.thank_bonbon(p_id uuid, p_reaction int default 0)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  update public.bonbons set status = 'thanked'
+  update public.bonbons
+  set status = 'thanked', reaction = case when p_reaction between 0 and 3 then p_reaction else 0 end
   where id = p_id and recipient_id = auth.uid() and status = 'open';
+end $$;
+
+-- Pause bonbons : rien n'arrive jusqu'à p_until (au plus 25 h), null = reprendre
+create or replace function public.set_pause(p_until timestamptz)
+returns json language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'AUTH'; end if;
+  if p_until is not null and (p_until <= now() or p_until > now() + interval '25 hours') then raise exception 'GONE'; end if;
+  update public.profiles set paused_until = p_until where id = uid;
+  return public.my_status();
+end $$;
+
+-- Pouls de la ville : nombre de bonbons offerts dans ma ville sur 7 jours (un simple total, personne n'est exposé)
+create or replace function public.city_pulse()
+returns json language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); me public.sessions%rowtype;
+begin
+  if public.access_problem(uid) is not null then return null; end if;
+  select * into me from public.sessions where user_id = uid and expires_at > now();
+  if not found then return null; end if;
+  return json_build_object('week', (
+    select count(*) from public.bonbons b
+    where b.created_at > now() - interval '7 days'
+      and public.norm_city(b.sender_current_city) = public.norm_city(me.current_city)));
 end $$;
 
 -- Signaler = bloquer définitivement. 3 signalements distincts en 30 jours = compte suspendu.
@@ -963,6 +1006,28 @@ begin
   return b.photo_path;
 end $$;
 
+-- Vocaux à effacer (défini avant media_to_delete, qui l'utilise)
+create or replace function public.voices_to_delete()
+returns table (path text) language sql stable security definer set search_path = public as $$
+  select b.voice_path from public.bonbons b
+  where b.voice_path is not null and not b.voice_gone
+    and (b.voice_opened_at < now() - interval '5 minutes'
+         or b.status = 'reported'
+         or b.created_at < now() - interval '24 hours')
+  union
+  select o.name from storage.objects o
+  where o.bucket_id = 'vocaux' and o.created_at < now() - interval '1 hour'
+    and not exists (select 1 from public.bonbons b where b.voice_path = o.name and not b.voice_gone
+                    and b.created_at > now() - interval '24 hours' and b.status <> 'reported'
+                    and (b.voice_opened_at is null or b.voice_opened_at > now() - interval '5 minutes'))
+    and not exists (select 1 from public.profiles p where p.profile_voice = o.name)
+  limit 500
+$$;
+create or replace function public.voices_deleted(p_paths text[])
+returns void language sql security definer set search_path = public as $$
+  update public.bonbons set voice_gone = true where voice_path = any(p_paths)
+$$;
+
 -- Nettoyage commun (vocaux et photos), appelé par la fonction « nettoyage-vocaux » avec la clé service
 create or replace function public.media_to_delete()
 returns table (bucket text, path text) language sql stable security definer set search_path = public as $$
@@ -1017,27 +1082,6 @@ begin
   return public.my_status();
 end $$;
 
-create or replace function public.voices_to_delete()
-returns table (path text) language sql stable security definer set search_path = public as $$
-  select b.voice_path from public.bonbons b
-  where b.voice_path is not null and not b.voice_gone
-    and (b.voice_opened_at < now() - interval '5 minutes'
-         or b.status = 'reported'
-         or b.created_at < now() - interval '24 hours')
-  union
-  select o.name from storage.objects o
-  where o.bucket_id = 'vocaux' and o.created_at < now() - interval '1 hour'
-    and not exists (select 1 from public.bonbons b where b.voice_path = o.name and not b.voice_gone
-                    and b.created_at > now() - interval '24 hours' and b.status <> 'reported'
-                    and (b.voice_opened_at is null or b.voice_opened_at > now() - interval '5 minutes'))
-    and not exists (select 1 from public.profiles p where p.profile_voice = o.name)
-  limit 500
-$$;
-create or replace function public.voices_deleted(p_paths text[])
-returns void language sql security definer set search_path = public as $$
-  update public.bonbons set voice_gone = true where voice_path = any(p_paths)
-$$;
-
 -- ---------- Droits d'exécution -------------------------------------------
 revoke execute on all functions in schema public from public, anon;
 grant execute on function
@@ -1045,7 +1089,7 @@ grant execute on function
   public.start_session(text, text[], text, text, text), public.end_session(),
   public.discover(), public.send_bonbon(uuid, int, text, int, text, text, text), public.open_voice(uuid), public.open_photo(uuid), public.photo_read_ok(text),
   public.voice_upload_ok(text), public.voice_read_ok(text), public.voice_delete_ok(text),
-  public.inbox(), public.sent(), public.thank_bonbon(uuid),
+  public.inbox(), public.sent(), public.thank_bonbon(uuid, int), public.set_pause(timestamptz), public.city_pulse(),
   public.report(text, uuid, uuid), public.block_only(uuid, uuid), public.update_bio(text), public.update_settings(boolean, boolean, boolean, boolean, boolean),
   public.set_avatar(int), public.my_premium_code(), public.restore_premium(text), public.reply_bonbon(uuid, int, text, int, text, text, text), public.conversations(), public.thread(uuid), public.send_phrase(uuid, int), public.send_text(uuid, text), public.set_profile_photo(text), public.set_profile_voice(text),
   public.delete_account()

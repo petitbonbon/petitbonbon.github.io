@@ -1,16 +1,25 @@
 {
+  "id": "./",
   "name": "Petit Bonbon",
   "short_name": "Petit Bonbon",
   "description": "Des inconnus. Des compliments. Aucune pression.",
   "lang": "fr",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#FFF8F0",
   "theme_color": "#ECE4FF",
+  "categories": ["social", "lifestyle"],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Ma box", "short_name": "Ma box", "url": "./?tab=inbox", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mon bocal à bonbons", "short_name": "Bocal", "url": "./?tab=jar", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }

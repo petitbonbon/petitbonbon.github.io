@@ -1,6 +1,6 @@
 // Service worker minimal : rend l'app installable et garde l'écran de base
 // disponible hors connexion. Les données (Supabase) ne sont jamais mises en cache.
-const CACHE = 'pb-v37';
+const CACHE = 'pb-v38';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'icon.svg', 'icon-192.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
