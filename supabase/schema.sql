@@ -575,15 +575,17 @@ begin
   if (select count(*) from public.bonbons
       where sender_id = uid and created_at > now() - interval '24 hours') >= lim
   then raise exception 'LIMIT'; end if;
-  txt := public.check_custom(uid, p_custom, orig.sender_id);
+  -- Réponse en texte libre pour tout le monde (120 caractères, filtré) : plus de compliments tout faits
+  txt := nullif(trim(coalesce(p_custom, '')), '');
+  if txt is null then raise exception 'EMPTY'; end if;
+  if char_length(txt) > 120 or public.text_problem(txt) then raise exception 'BAD_TEXT'; end if;
   perform public.check_voice(uid, p_voice, orig.sender_id);
   perform public.check_photo(uid, p_photo, p_photo_thumb, orig.sender_id);
-  if txt is null and (p_compliment is null or p_compliment not between 0 and 11) then raise exception 'GONE'; end if;
   insert into public.bonbons (sender_id, recipient_id, sender_pseudo, sender_home_city,
                               sender_current_city, recipient_pseudo, compliment_id, custom_text, reply_to, effect, voice_path,
                               photo_path, photo_thumb)
   values (uid, orig.sender_id, me.pseudo, me.home_city, me.current_city, orig.sender_pseudo,
-          case when txt is null then p_compliment end, txt, orig.id,
+          null, txt, orig.id,
           case when public.is_premium(uid) and p_effect between 0 and 3 then p_effect else 0 end,
           nullif(p_voice, ''), nullif(p_photo, ''), case when nullif(p_photo, '') is not null then p_photo_thumb end);
 end $$;

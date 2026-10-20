@@ -104,6 +104,7 @@ select recovery_code, sub_status, sub_period_end from profiles where stripe_cust
 - **Installer l'app** : bouton « Installer » (Android/Chrome) ou mode d'emploi iPhone ; raccourcis « Ma box » et « Bocal » sur l'icône.
 - **Bocal à bonbons** : chaque compliment déballé s'y range, sur le téléphone uniquement. Bouton « Piocher un bonbon » pour les jours gris.
 - **Bonbon du jour** : une suggestion douce par jour (60 phrases, liste `DAILY` dans `app.js`).
+- **Renvoyer un bonbon = texte libre** : plus de compliments tout faits dans la réponse ; chacun écrit ses mots (120 caractères, filtrés), gratuit ou Premium. Le premier bonbon garde la liste.
 - **Compliments guidés** : débuts de phrases à toucher pour les mots personnalisés et la conversation libre (liste `STARTERS`).
 - **Réactions sans texte** : 💌 Merci, 🍬 Touché·e, 🍭 J'ai souri, 🍫 Ça m'a fait du bien. L'expéditeur voit la réaction.
 - **Compteur de ville** : « 128 bonbons échangés à Orléans cette semaine » (un simple total).

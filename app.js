@@ -80,6 +80,7 @@ const PREMIUM_FEATURES = [
 ];
 const PREMIUM_SOON = 'D’autres petites surprises arrivent bientôt.';
 const PHOTO_SECONDS = 10; // durée de la révélation
+const REPLY_MAX = 120;    // « Renvoyer un bonbon » : texte libre, pour tout le monde (doit correspondre à reply_bonbon dans schema.sql)
 const VOICE_FREE = 8, VOICE_PREMIUM = 15; // secondes
 const voiceMax = () => (isPremium() ? VOICE_PREMIUM : VOICE_FREE);
 // Vocal de la carte de profil : 5 s, 10 s avec Premium
@@ -147,6 +148,7 @@ const ERRORS = {
   NO_SESSION: 'Ton identité du jour a expiré. Recrée-la pour continuer.',
   BAD_MOOD: 'Humeur non reconnue.',
   AUTH: 'Ta session a expiré, reconnecte-toi.',
+  EMPTY: 'Écris quelques mots pour lui répondre.',
   PAUSED: 'Cette personne fait une pause bonbons pour l’instant 🌙 Réessaie demain.',
 };
 
@@ -750,11 +752,16 @@ V.tab_send = () => {
       <h2>${t.reply_id ? 'Renvoyer un bonbon à' : 'Un bonbon pour'} ${esc(t.pseudo)}</h2>
       ${t.local ? `<span class="badge local" style="align-self:flex-start">Vous êtes tous les deux à ${esc(cityLabel(S.status))}</span>` : `<span class="badge away" style="align-self:flex-start">De passage · vient de ${esc(t.home_city)}</span>`}
     </div>
-    <div role="radiogroup" aria-label="Choisis un compliment" class="stack" style="gap:10px">
+    ${t.reply_id ? `<div class="field"><label for="custom">Ta réponse</label>
+        ${V.starters('custom')}
+        <textarea id="custom" name="custom" rows="3" maxlength="${REPLY_MAX}" placeholder="Écris-lui quelques mots doux">${esc(S.custom)}</textarea>
+        ${V.kindHint('custom', S.custom)}
+        <span class="small"><span data-count="custom">${S.custom.length}</span> / ${REPLY_MAX} caractères. Bienveillant, sans numéro, réseau social ni lien : c’est vérifié avant d’arriver.</span></div>`
+    : `<div role="radiogroup" aria-label="Choisis un compliment" class="stack" style="gap:10px">
       ${COMPLIMENTS.map((c, i) => `<button type="button" role="radio" class="compliment" aria-checked="${S.pick === i}" data-a="pick" data-i="${i}"><span class="dot"></span><span>${esc(c)}</span></button>`).join('')}
-    </div>
+    </div>`}
     ${isPremium()
-      ? (t.accepts_custom === false
+      ? (t.reply_id ? '' : t.accepts_custom === false
           ? '<p class="note" style="margin:var(--px)">Cette personne préfère recevoir les compliments de la liste.</p>'
           : `<div class="field"><label for="custom">Ou écris ton propre mot <span style="color:var(--pink-deep)">· Premium</span></label>
               ${V.starters('custom')}
@@ -769,7 +776,7 @@ V.tab_send = () => {
             </div>`
       : (t.accepts_voice === false ? '' : V.voiceBox()) + `<div class="stack" style="gap:10px">
       <span class="label" style="padding:0 4px">Avec Premium</span>
-      <div class="chips">${LOCKED_CHIPS.map((f) => `<button type="button" class="chip locked" data-a="openPremium">${ICON.lockSmall}${esc(f)}</button>`).join('')}</div>
+      <div class="chips">${LOCKED_CHIPS.filter((f) => !(t.reply_id && f === 'Mon propre mot')).map((f) => `<button type="button" class="chip locked" data-a="openPremium">${ICON.lockSmall}${esc(f)}</button>`).join('')}</div>
     </div>`}
     ${errorBox()}
     <button class="btn" data-a="send" ${S.busy ? 'disabled' : ''}>Envoyer le bonbon</button>
@@ -851,7 +858,7 @@ V.tab_inbox = () => {
       </div>` : ''}
       <span class="context">${m.local ? 'Vous êtes dans la même ville, mais vous ne vous connaissez pas.' : `Un inconnu de passage à ${esc(city)}, venu de ${esc(m.sender_home_city)}.`}</span>
       <p class="quote">« ${esc(m.custom_text || COMPLIMENTS[m.compliment_id] || '')} »</p>
-      <span class="small">— ${esc(m.sender_pseudo)} · ${timeAgo(m.created_at)}${m.is_reply ? ' · <strong>en réponse à ton bonbon</strong>' : ''}${m.custom_text ? ' · mot personnalisé' : ''}</span>
+      <span class="small">— ${esc(m.sender_pseudo)} · ${timeAgo(m.created_at)}${m.is_reply ? ' · <strong>en réponse à ton bonbon</strong>' : ''}${m.custom_text && !m.is_reply ? ' · mot personnalisé' : ''}</span>
       ${m.has_photo ? (!m.photo_seen && m.photo_thumb
         ? `<button class="photo-blur" data-a="revealPhoto" data-id="${esc(m.id)}" ${S.revealing ? 'disabled' : ''}><img src="${esc(m.photo_thumb)}" alt="" draggable="false"><span>${S.revealing === m.id ? 'Ouverture…' : `👁 Révéler la photo · ${PHOTO_SECONDS} s`}</span></button>`
         : '<span class="small">📷 Photo vue (elle n’existe plus)</span>') : ''}
@@ -1881,7 +1888,10 @@ const A = {
   async send() {
     S.busy = true; S.error = ''; render();
     try {
-      const custom = isPremium() && S.custom.trim() ? S.custom.trim() : null;
+      const reply = !!S.target.reply_id;
+      const custom = (reply || isPremium()) && S.custom.trim() ? S.custom.trim() : null;
+      if (reply && !custom) throw new Error('EMPTY');
+      if (reply && custom.length > REPLY_MAX) throw new Error('BAD_TEXT');
       const effect = isPremium() ? (S.effect || 0) : 0;
       if (S.voice && S.voice.recording) stopRecording();
       if (S.photo && S.photo.checking) throw new Error('Attends la fin de la vérification de la photo.');
@@ -1907,7 +1917,7 @@ const A = {
       S.status.sent_today += 1;
       S.target.already_sent = true;
       S.tab = 'sentok';
-    } catch (e) { S.error = errMsg(e); }
+    } catch (e) { S.error = S.target && S.target.reply_id && /BAD_TEXT/.test((e && e.message) || '') ? ERRORS.BAD_MSG : errMsg(e); }
     S.busy = false; render();
   },
   async react(d) {
@@ -1959,6 +1969,7 @@ const A = {
     const v = el.value.trim();
     el.value = !v || STARTERS.some((x) => x.trim() === v) ? st : `${v} ${st}`;
     if (d.for === 'custom') S.custom = el.value;
+    const cnt = document.querySelector(`[data-count="${d.for}"]`); if (cnt) cnt.textContent = String(el.value.length);
     el.focus();
     try { el.setSelectionRange(el.value.length, el.value.length); } catch (_) {}
     updateKindHint(el);
@@ -2254,6 +2265,8 @@ function updateKindHint(el) {
 }
 document.addEventListener('input', (e) => {
   if (e.target.id) updateKindHint(e.target);
+  const cnt = e.target.id && document.querySelector(`[data-count="${e.target.id}"]`);
+  if (cnt) cnt.textContent = String(e.target.value.length);
   if (e.target.id === 'custom') S.custom = e.target.value;
   const k = e.target.dataset && e.target.dataset.bind;
   if (k) S.form[k] = e.target.value;
