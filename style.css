@@ -366,7 +366,9 @@ body.veiled #app, body.veiled .banner, body.veiled .sheet-back { filter: blur(18
 .jar-item { gap: 6px !important; padding: 14px 16px !important; }
 .jar-item .quote { font-size: 19px; }
 .jar-item .row { justify-content: space-between; }
-.jar-pick { --fill: var(--pink-soft); --shade: var(--pink-soft-shade); align-items: center; text-align: center; }
+.jar-pick { --fill: var(--pink-soft); --shade: var(--pink-soft-shade); align-items: center; text-align: center;
+  animation: reveal .45s cubic-bezier(.34, 1.6, .64, 1), jar-out .6s ease-in calc(var(--jar-secs, 6s) - .6s) forwards; }
+@keyframes jar-out { to { opacity: 0; transform: scale(.92) translateY(16px); } }
 .jar-pick .quote { font-size: 24px; }
 
 /* ---------- Réactions sans texte ---------- */
@@ -441,7 +443,7 @@ body.veiled #app, body.veiled .banner, body.veiled .sheet-back { filter: blur(18
 
 /* ---------- Moins d'animations si le téléphone le demande ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .cursor, .banner, .pulse-heart, .wrap-card .wrap-candy, .card.reveal { animation: none; }
+  .cursor, .banner, .pulse-heart, .wrap-card .wrap-candy, .card.reveal, .jar-pick { animation: none; }
   .wrap-card.opening .wrap-candy { animation: none; opacity: 0; transition: opacity .2s; }
   .btn, .chip, .compliment, .reason, .nav button, .react, .style-pick { transition: none; }
 }

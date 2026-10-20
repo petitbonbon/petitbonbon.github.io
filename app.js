@@ -265,6 +265,7 @@ const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-
 // Les compliments reçus s'y rangent tout seuls, une fois déballés. Ils restent
 // sur ce téléphone (rien n'est envoyé), même quand l'identité du jour s'efface.
 const JAR_MAX = 300;
+const JAR_SHOW = 6;   // secondes pendant lesquelles le bonbon pioché reste visible
 const JAR = {
   list() { try { return JSON.parse(localStorage.getItem('pb_jar') || '[]'); } catch (_) { return []; } },
   save(l) { try { localStorage.setItem('pb_jar', JSON.stringify(l.slice(0, JAR_MAX))); } catch (_) {} },
@@ -906,13 +907,8 @@ V.tab_jar = () => {
       <p class="sub" style="max-width:330px">Tous les compliments que tu as reçus, à relire les jours gris. Ils restent sur ce téléphone, même quand ton identité du jour s’efface.</p>
       ${l.length ? '<button class="btn" data-a="jarPick">Piocher un bonbon</button>' : ''}
     </div>
-    ${pick ? `<article class="card jar-pick reveal" aria-live="polite"><p class="quote">« ${esc(pick.text)} »</p><span class="small">${meta(pick)}</span></article>` : ''}
-    ${l.length ? l.map((x) => `<article class="card jar-item">
-        <p class="quote">« ${esc(x.text)} »</p>
-        <div class="row"><span class="small">${meta(x)}</span><button class="link muted" style="min-height:32px" data-a="jarRemove" data-id="${esc(x.id)}" aria-label="Retirer du bocal">Retirer</button></div>
-      </article>`).join('')
-      : `<div class="empty"><span>Ton bocal est encore vide. Chaque bonbon que tu déballes viendra s’y ranger.</span></div>`}
-    ${l.length ? '<button class="link muted" style="align-self:center" data-a="jarClear">Vider mon bocal</button>' : ''}
+    ${pick ? `<article class="card jar-pick" aria-live="polite" style="--jar-secs:${JAR_SHOW}s"><p class="quote">« ${esc(pick.text)} »</p><span class="small">${meta(pick)}</span></article>` : ''}
+    ${l.length ? '' : `<div class="empty"><span>Ton bocal est encore vide. Chaque bonbon que tu déballes viendra s’y ranger.</span></div>`}
   </div>`;
 };
 
@@ -1978,7 +1974,10 @@ const A = {
     const l = JAR.list(); if (!l.length) return;
     let next = l[Math.floor(Math.random() * l.length)];
     if (l.length > 1) while (next.id === S.jarPick) next = l[Math.floor(Math.random() * l.length)];
-    S.jarPick = next.id; buzz(12); render(); window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+    S.jarPick = next.id; buzz(12); render();
+    // Le bonbon ne reste que quelques secondes, puis retourne dans le bocal
+    clearTimeout(S.jarTimer);
+    S.jarTimer = setTimeout(() => { S.jarPick = null; if (S.view === 'main' && S.tab === 'jar') render(); }, JAR_SHOW * 1000);
   },
   jarRemove(d) { JAR.remove(d.id); if (S.jarPick === d.id) S.jarPick = null; render(); toast('Retiré du bocal.'); },
   jarClear() {
